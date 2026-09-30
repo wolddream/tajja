@@ -1,8 +1,9 @@
 import React from 'react';
+import { AuthUser } from '../types/hwatu';
 import { playClick } from '../utils/sound';
 import { LEVEL_REQUIREMENTS } from '../utils/storage';
 
-export type TabKey = 'practice' | 'quiz' | 'board' | 'profile';
+export type TabKey = 'practice' | 'quiz' | 'board' | 'profile' | 'admin';
 
 interface NavigationProps {
   currentTab: TabKey;
@@ -10,6 +11,9 @@ interface NavigationProps {
   userLevel: number;
   userTitle: string;
   totalGames: number;
+  isAdmin: boolean;
+  currentUser: AuthUser | null;
+  onLogout: () => void;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -18,6 +22,9 @@ export const Navigation: React.FC<NavigationProps> = ({
   userLevel,
   userTitle,
   totalGames,
+  isAdmin,
+  currentUser,
+  onLogout,
 }) => {
   // 경험치 게이지 퍼센트 (프로필 화면과 동일한 계산식: 다음 레벨의 "경기 진행 횟수" 기준)
   const currentReq = LEVEL_REQUIREMENTS.find(r => r.level === userLevel) || LEVEL_REQUIREMENTS[0];
@@ -37,11 +44,12 @@ export const Navigation: React.FC<NavigationProps> = ({
     onSelectTab(tab);
   };
 
-  const navItems: { key: TabKey; label: string; icon: string }[] = [
+  const navItems: { key: TabKey; label: string; icon: string; adminOnly?: boolean }[] = [
     { key: 'practice', label: '연습 (수읽기)', icon: '🎴' },
     { key: 'quiz', label: '오늘의 퀴즈', icon: '❓' },
     { key: 'board', label: '게시판 (토론)', icon: '💬' },
     { key: 'profile', label: '프로필 & 퀘스트', icon: '🏆' },
+    ...(isAdmin ? [{ key: 'admin' as TabKey, label: '관리자', icon: '⚙️', adminOnly: true }] : []),
   ];
 
   return (
@@ -68,13 +76,18 @@ export const Navigation: React.FC<NavigationProps> = ({
                 type="button"
                 key={item.key}
                 onClick={() => handleTabClick(item.key)}
-                className={`py-1 cursor-pointer transition-colors whitespace-nowrap text-xs font-semibold ${
+                className={`py-1 cursor-pointer transition-colors whitespace-nowrap text-xs font-semibold flex items-center gap-1.5 ${
                   currentTab === item.key
                     ? 'text-[#A9791C] border-b-2 border-[#A9791C]'
                     : 'text-[#666] hover:text-[#111]'
                 }`}
               >
-                {item.label}
+                <span>{item.label}</span>
+                {item.adminOnly && (
+                  <span className="text-[10px] bg-[#9C3131] text-white px-1.5 py-0.2 rounded font-bold">
+                    Admin
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -117,15 +130,29 @@ export const Navigation: React.FC<NavigationProps> = ({
               <span className="w-5 h-5 rounded-full bg-[#A9791C] text-white flex items-center justify-center text-[10px] font-bold">
                 {userLevel}
               </span>
-              <span className="hidden sm:inline text-xs">{userTitle}</span>
+              <span className="hidden sm:inline text-xs font-medium">
+                {currentUser?.name || userTitle}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                playClick();
+                onLogout();
+              }}
+              className="px-2.5 py-1.5 rounded-lg bg-white border border-[#DDD4C0] hover:border-[#9C3131] hover:text-[#9C3131] text-[11px] text-[#7A7466] transition-colors cursor-pointer whitespace-nowrap"
+              title="로그아웃"
+            >
+              로그아웃
             </button>
           </div>
         </div>
       </header>
 
-      {/* Bottom Tab Navigation Bar (Required by prompt: 하단 탭 내비게이션으로 화면 전환) */}
+      {/* Bottom Tab Navigation Bar (Mobile) */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#FAF6EC] border-t border-[#DDD4C0] px-2 py-1 shadow-lg md:hidden">
-        <div className="max-w-md mx-auto grid grid-cols-4 gap-1">
+        <div className={`max-w-md mx-auto grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} gap-1`}>
           {navItems.map(item => {
             const isActive = currentTab === item.key;
             return (
@@ -133,21 +160,23 @@ export const Navigation: React.FC<NavigationProps> = ({
                 type="button"
                 key={item.key}
                 onClick={() => handleTabClick(item.key)}
-                className={`flex flex-col items-center justify-center py-1.5 px-1 rounded-lg transition-colors cursor-pointer ${
+                className={`flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg transition-colors cursor-pointer ${
                   isActive
                     ? 'text-[#A9791C] font-bold bg-[#A9791C]/10'
                     : 'text-[#7A7466] hover:text-[#111]'
                 }`}
               >
                 <span className="text-base leading-none mb-1">{item.icon}</span>
-                <span className="text-[11px] truncate whitespace-nowrap">
+                <span className="text-[10px] truncate whitespace-nowrap">
                   {item.key === 'practice'
                     ? '연습'
                     : item.key === 'quiz'
                     ? '오늘의 퀴즈'
                     : item.key === 'board'
                     ? '게시판'
-                    : '프로필'}
+                    : item.key === 'profile'
+                    ? '프로필'
+                    : '관리자'}
                 </span>
               </button>
             );

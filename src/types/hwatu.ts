@@ -117,3 +117,10 @@ export interface UserProfile {
   lastLoginDate: string;
   badges: string[];
 }
+
+export interface AuthUser {
+  name: string;
+  email: string;
+  photoUrl?: string;
+  loginAt: string;
+}

@@ -7,6 +7,7 @@ import { playClick, playSuccess, playCardSnap } from '../utils/sound';
 interface QuizTabProps {
   attendanceStreak: number;
   quizCorrectCount: number;
+  quizzes: QuizQuestion[];
   onQuizCorrect: () => void;
   onQuizAttempt: () => void;
 }
@@ -14,6 +15,7 @@ interface QuizTabProps {
 export const QuizTab: React.FC<QuizTabProps> = ({
   attendanceStreak,
   quizCorrectCount,
+  quizzes,
   onQuizCorrect,
   onQuizAttempt,
 }) => {
@@ -21,7 +23,8 @@ export const QuizTab: React.FC<QuizTabProps> = ({
   const [selectedOptionId, setSelectedOptionId] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
 
-  const currentQuiz: QuizQuestion = DEFAULT_QUIZZES[currentQuizIdx % DEFAULT_QUIZZES.length];
+  const activeQuizzes = quizzes.length > 0 ? quizzes : DEFAULT_QUIZZES;
+  const currentQuiz: QuizQuestion = activeQuizzes[currentQuizIdx % activeQuizzes.length];
 
   const handleSelectOption = (optionId: number) => {
     if (isAnswered) return;
@@ -46,7 +49,7 @@ export const QuizTab: React.FC<QuizTabProps> = ({
 
   const handleNextQuiz = () => {
     playClick();
-    setCurrentQuizIdx(prev => (prev + 1) % DEFAULT_QUIZZES.length);
+    setCurrentQuizIdx(prev => (prev + 1) % activeQuizzes.length);
     setSelectedOptionId(null);
     setIsAnswered(false);
   };
@@ -74,7 +77,7 @@ export const QuizTab: React.FC<QuizTabProps> = ({
           <div className="px-3 py-1.5 rounded-lg bg-[#FAF6EC] border border-[#E5DFCE]">
             <span className="text-[#7A7466]">오늘의 문제: </span>
             <span className="font-bold text-[#A9791C]">
-              {(currentQuizIdx % DEFAULT_QUIZZES.length) + 1} / {DEFAULT_QUIZZES.length}
+              {(currentQuizIdx % activeQuizzes.length) + 1} / {activeQuizzes.length}
             </span>
           </div>
           <div className="px-3 py-1.5 rounded-lg bg-[#FAF6EC] border border-[#E5DFCE]">

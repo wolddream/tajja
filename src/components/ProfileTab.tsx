@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { UserProfile } from '../types/hwatu';
-import { LEVEL_REQUIREMENTS } from '../utils/storage';
+import { UserProfile, AuthUser } from '../types/hwatu';
+import { LEVEL_REQUIREMENTS, isAdminEmail } from '../utils/storage';
 import { isSoundEnabled, setSoundEnabled, playSuccess, playClick } from '../utils/sound';
 import { CARD_IMAGE_CREDIT } from '../utils/cardImages';
 
 interface ProfileTabProps {
   userProfile: UserProfile;
+  currentUser?: AuthUser | null;
+  onLogout?: () => void;
   onLevelUp: () => void;
   onResetData: () => void;
   onUpdateSound: (enabled: boolean) => void;
@@ -13,6 +15,8 @@ interface ProfileTabProps {
 
 export const ProfileTab: React.FC<ProfileTabProps> = ({
   userProfile,
+  currentUser,
+  onLogout,
   onLevelUp,
   onResetData,
   onUpdateSound,
@@ -419,6 +423,35 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
         </h3>
 
         <div className="divide-y divide-[#E5DFCE] text-xs">
+          {/* Account Info */}
+          {currentUser && (
+            <div className="py-3 flex items-center justify-between">
+              <div>
+                <div className="font-bold text-[#1F1F1F] flex items-center gap-1.5">
+                  <span>로그인 계정: {currentUser.name}</span>
+                  {isAdminEmail(currentUser.email) && (
+                    <span className="text-[10px] bg-[#9C3131] text-white px-1.5 py-0.2 rounded font-bold">
+                      관리자
+                    </span>
+                  )}
+                </div>
+                <div className="text-[#7A7466] font-mono text-[11px]">{currentUser.email}</div>
+              </div>
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClick();
+                    onLogout();
+                  }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-[#DDD4C0] hover:border-[#9C3131] hover:text-[#9C3131] cursor-pointer transition-colors"
+                >
+                  로그아웃
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Sound Toggle */}
           <div className="py-3 flex items-center justify-between">
             <div>

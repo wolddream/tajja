@@ -1,9 +1,66 @@
-import { UserProfile, LevelRequirement, BoardPost } from '../types/hwatu';
+import { UserProfile, LevelRequirement, BoardPost, AuthUser, QuizQuestion } from '../types/hwatu';
 import { getCardById } from './hwatuData';
+import { DEFAULT_QUIZZES } from './quizData';
 
+export const ADMIN_EMAILS: string[] = [
+  'wolddream@gmail.com',
+];
+
+export const isAdminEmail = (email?: string): boolean => {
+  if (!email) return false;
+  return ADMIN_EMAILS.map(e => e.toLowerCase().trim()).includes(email.toLowerCase().trim());
+};
+
+const STORAGE_KEY_AUTH = 'hunsu_pae_auth_user_v1';
 const STORAGE_KEY_PROFILE = 'hunsu_pae_profile_v1';
 const STORAGE_KEY_POSTS = 'hunsu_pae_posts_v1';
 const STORAGE_KEY_QUIZ_INDEX = 'hunsu_pae_quiz_idx_v1';
+const STORAGE_KEY_QUIZZES = 'hunsu_pae_quizzes_v1';
+
+export const loadAuthUser = (): AuthUser | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_AUTH);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
+export const saveAuthUser = (user: AuthUser | null): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!user) {
+      localStorage.removeItem(STORAGE_KEY_AUTH);
+    } else {
+      localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(user));
+    }
+  } catch {
+    // Ignore
+  }
+};
+
+export const loadQuizzes = (): QuizQuestion[] => {
+  if (typeof window === 'undefined') return DEFAULT_QUIZZES;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_QUIZZES);
+    if (!raw) return DEFAULT_QUIZZES;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_QUIZZES;
+  } catch {
+    return DEFAULT_QUIZZES;
+  }
+};
+
+export const saveQuizzes = (quizzes: QuizQuestion[]): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_QUIZZES, JSON.stringify(quizzes));
+  } catch {
+    // Ignore
+  }
+};
 
 export const LEVEL_REQUIREMENTS: LevelRequirement[] = [
   {
