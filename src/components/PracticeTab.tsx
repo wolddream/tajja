@@ -33,32 +33,20 @@ const EMPTY_CAPTURED: CapturedSummary = { gwang: [], yeol: [], tti: [], pi: [] }
 const PLAYER_LABEL: Record<PlayerKey, string> = { user: '나', opp1: '상대1', opp2: '상대2' };
 
 // 상대/내 정보 배지 (실제 게임 클라이언트의 아바타 카드 느낌). 상대1/상대2는 색상과 아바타 글자를 다르게 표시해 확실히 구분한다.
-const PlayerBadge: React.FC<{
+// 원래는 아바타 원+박스 배지였으나, 그 자리를 손패/먹은 패 표시 공간으로 더 쓰기 위해
+// 순수 텍스트 한 줄로 축소했다(자리를 차지하는 배지 UI 대신 텍스트로만 이름/차례/부가정보 표시).
+const PlayerLabel: React.FC<{
   label: string;
   sub: string;
-  avatarText: string;
-  colorClass: string;
+  labelColorClass: string;
   align?: 'left' | 'right';
   active?: boolean;
-}> = ({ label, sub, avatarText, colorClass, align = 'left', active = false }) => (
-  <div
-    className={`flex items-center gap-2 bg-black/35 border rounded-xl px-2.5 py-1.5 shrink-0 transition-colors ${
-      align === 'right' ? 'flex-row-reverse text-right' : ''
-    } ${active ? 'border-[#F3D999] ring-2 ring-[#F3D999]/70 shadow-[0_0_10px_rgba(243,217,153,0.5)]' : 'border-white/15'}`}
-  >
-    <div className={`w-8 h-8 rounded-full ${colorClass} flex items-center justify-center text-xs font-black text-white shrink-0 shadow-sm relative`}>
-      {avatarText}
-      {active && (
-        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#F3D999] animate-ping" />
-      )}
-    </div>
-    <div className="leading-tight">
-      <div className="text-[11px] font-bold text-[#F4EEDC] whitespace-nowrap flex items-center gap-1">
-        {label}
-        {active && <span className="text-[9px] font-bold text-[#F3D999]">● 차례</span>}
-      </div>
-      <div className="text-[9.5px] text-[#A5C7B5] whitespace-nowrap">{sub}</div>
-    </div>
+}> = ({ label, sub, labelColorClass, align = 'left', active = false }) => (
+  <div className={`flex items-baseline gap-1 shrink-0 ${align === 'right' ? 'flex-row-reverse' : ''}`}>
+    <span className={`text-[11px] font-black whitespace-nowrap ${active ? 'text-[#F3D999]' : labelColorClass}`}>
+      {active && '● '}{label}
+    </span>
+    <span className="text-[9.5px] text-[#A5C7B5] whitespace-nowrap">{sub}</span>
   </div>
 );
 
@@ -125,15 +113,13 @@ const HandStack: React.FC<{
 };
 
 // 한 종류(광/열끗/띠/피)의 먹은 패를 살짝 겹쳐 쌓고, 2장 이상이면 우하단에 장수 배지를 붙인다.
+// "나"/"상대" 아바타 배지를 없애고 텍스트로 바꿔 확보한 공간만큼, 먹은 패는 개수 제한 없이
+// 전부 보여준다(겹침 폭도 기존(-23px)보다 약 20% 줄여, 어떤 패를 먹었는지 더 잘 구분되게 한다).
 const CategoryPile: React.FC<{ cards: HwatuCard[] }> = ({ cards }) => {
   if (cards.length === 0) return null;
-  // 겹쳐 쌓을 카드 수를 제한해, 칸 밖으로 반쪽만 잘려 보이는 카드가 생기지 않게 한다.
-  // 겹침 폭도 기존(-23px)보다 약 20% 줄여, 어떤 패를 먹었는지 더 잘 구분되게 한다.
-  const MAX_SHOWN = 4;
-  const shownCards = cards.slice(0, MAX_SHOWN);
   return (
     <div className="relative flex shrink-0">
-      {shownCards.map((card, idx) => (
+      {cards.map((card, idx) => (
         <div key={`${card.id}-${idx}`} className="shrink-0" style={{ marginLeft: idx === 0 ? 0 : '-18px', zIndex: idx }}>
           <CardView card={card} size="xs" disabled={true} hideInfo={true} fullOpacity noBorder />
         </div>
@@ -162,7 +148,7 @@ const CapturedStack: React.FC<{ captured: CapturedSummary; align?: 'left' | 'rig
   return (
     <div className={`flex flex-col gap-1 p-1 bg-black/20 rounded-lg shrink-0 self-stretch ${align === 'right' ? 'items-end' : 'items-start'}`}>
       {rows.map((row, rowIdx) => (
-        <div key={rowIdx} className={`flex items-end gap-1.5 min-h-[3rem] ${rowJustify}`}>
+        <div key={rowIdx} className={`flex flex-wrap items-end gap-1.5 min-h-[3rem] ${rowJustify}`}>
           {row.map((g, i) => <CategoryPile key={i} cards={g} />)}
         </div>
       ))}
@@ -1198,11 +1184,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           <div className="flex items-start gap-2">
             <div className="flex-1 min-w-0 overflow-hidden flex flex-col items-start gap-1">
               <div className="flex items-center gap-1.5 w-full">
-                <PlayerBadge
+                <PlayerLabel
                   label="상대1"
                   sub={showOpponentCards ? '패 공개' : '비공개'}
-                  avatarText="1"
-                  colorClass="bg-[#9C3131]"
+                  labelColorClass="text-[#E08585]"
                   active={currentTurn === 'opp1' && !gameResult}
                 />
                 <div className="flex-1 min-w-0 overflow-hidden">
@@ -1230,11 +1215,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                       align="right"
                     />
                   </div>
-                  <PlayerBadge
+                  <PlayerLabel
                     label="상대2"
                     sub={showOpponentCards ? '패 공개' : '비공개'}
-                    avatarText="2"
-                    colorClass="bg-[#2B5F8A]"
+                    labelColorClass="text-[#7FB4E0]"
                     align="right"
                     active={currentTurn === 'opp2' && !gameResult}
                   />
@@ -1307,11 +1291,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         {/* My Area — 코너 아바타 배지 구도 (상대와 대칭) */}
         <div className="relative z-10 shrink-0 px-3.5 pb-1 space-y-1">
           <div className="flex items-end justify-between gap-2">
-            <PlayerBadge
+            <PlayerLabel
               label="나"
               sub={`획득 ${userCapturedTotal}장 · 점수 ${calculateScore(userCaptured).total}`}
-              avatarText="나"
-              colorClass="bg-[#2B3F5C]"
+              labelColorClass="text-[#9FB6D9]"
               active={currentTurn === 'user' && !gameResult}
             />
             <CapturedStack captured={userCaptured} align="right" />
