@@ -140,12 +140,13 @@ const CapturedStack: React.FC<{ captured: CapturedSummary; align?: 'left' | 'rig
     [captured.gwang, captured.yeol],
     [captured.tti, captured.pi],
   ];
-  if (rows.every(row => row.every(g => g.length === 0))) return null;
+  // 패를 하나도 안 먹었을 때도 2행 자리를 처음부터 잡아둬서, 첫 패를 먹는 순간
+  // 이 영역이 갑자기 생겨나며 화면 전체가 아래로 밀리는 레이아웃 흔들림을 없앤다.
   const rowJustify = align === 'right' ? 'justify-end' : 'justify-start';
   return (
     <div className={`flex flex-col gap-1 p-1 bg-black/20 rounded-lg shrink-0 self-stretch ${align === 'right' ? 'items-end' : 'items-start'}`}>
       {rows.map((row, rowIdx) => (
-        <div key={rowIdx} className={`flex items-end gap-1.5 ${rowJustify}`}>
+        <div key={rowIdx} className={`flex items-end gap-1.5 min-h-[3rem] ${rowJustify}`}>
           {row.map((g, i) => <CategoryPile key={i} cards={g} />)}
         </div>
       ))}
