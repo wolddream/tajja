@@ -103,32 +103,34 @@ const HandStack: React.FC<{
   );
 };
 
-// 상대가 먹은 패(공개 정보)를 겹쳐 쌓아 공간을 아끼는 더미. 상대1은 왼쪽, 상대2는 오른쪽으로 정렬한다.
-const CapturedStack: React.FC<{ cards: HwatuCard[]; align?: 'left' | 'right' }> = ({ cards, align = 'left' }) => {
+// 한 종류(광/열끗/띠/피)의 먹은 패를 살짝 겹쳐 쌓고, 2장 이상이면 우하단에 장수 배지를 붙인다.
+const CategoryPile: React.FC<{ cards: HwatuCard[] }> = ({ cards }) => {
   if (cards.length === 0) return null;
-  const countLabel = <span className="text-[10px] font-bold text-white/70 tabular-nums shrink-0">{cards.length}장</span>;
-  const stack = (
-    <div className="flex">
+  return (
+    <div className="relative flex shrink-0">
       {cards.map((card, idx) => (
         <div key={`${card.id}-${idx}`} className="shrink-0" style={{ marginLeft: idx === 0 ? 0 : '-23px', zIndex: idx }}>
           <CardView card={card} size="xs" disabled={true} hideInfo={true} />
         </div>
       ))}
+      {cards.length > 1 && (
+        <span className="absolute -bottom-1 -right-1 z-20 min-w-[14px] h-[14px] px-0.5 rounded-full bg-black/80 border border-white/50 text-[8px] font-bold text-white flex items-center justify-center leading-none">
+          {cards.length}
+        </span>
+      )}
     </div>
   );
+};
+
+// 상대가 먹은 패(공개 정보)를 종류별(광/열끗/띠/피)로 나눠, 각 종류 안에서만 겹쳐 쌓아 보여준다.
+// 실제 상용 고스톱 클라이언트처럼 종류가 한눈에 구분되면서도 공간은 아낄 수 있다.
+// 상대1은 왼쪽, 상대2는 오른쪽으로 정렬한다.
+const CapturedStack: React.FC<{ captured: CapturedSummary; align?: 'left' | 'right' }> = ({ captured, align = 'left' }) => {
+  const groups = [captured.gwang, captured.yeol, captured.tti, captured.pi];
+  if (groups.every(g => g.length === 0)) return null;
   return (
-    <div className={`flex items-center gap-1.5 p-1 bg-black/20 rounded-lg shrink-0 ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
-      {align === 'right' ? (
-        <>
-          {countLabel}
-          {stack}
-        </>
-      ) : (
-        <>
-          {stack}
-          {countLabel}
-        </>
-      )}
+    <div className={`flex items-end gap-1.5 p-1 bg-black/20 rounded-lg shrink-0 self-stretch ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
+      {groups.map((g, i) => <CategoryPile key={i} cards={g} />)}
     </div>
   );
 };
@@ -947,10 +949,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                 colorClass="bg-[#9C3131]"
                 active={currentTurn === 'opp1' && !gameResult}
               />
-              <CapturedStack
-                cards={[...opponentCaptured.gwang, ...opponentCaptured.yeol, ...opponentCaptured.tti, ...opponentCaptured.pi]}
-                align="left"
-              />
+              <CapturedStack captured={opponentCaptured} align="left" />
             </div>
 
             {gameMode === 'gostop3' ? (
@@ -963,10 +962,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                   align="right"
                   active={currentTurn === 'opp2' && !gameResult}
                 />
-                <CapturedStack
-                  cards={[...opponent2Captured.gwang, ...opponent2Captured.yeol, ...opponent2Captured.tti, ...opponent2Captured.pi]}
-                  align="right"
-                />
+                <CapturedStack captured={opponent2Captured} align="right" />
               </div>
             ) : (
               <div className="flex flex-col items-end gap-0.5 bg-black/25 border border-white/10 rounded-xl px-2.5 py-1.5 text-right shrink-0">
@@ -1051,13 +1047,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               colorClass="bg-[#2B3F5C]"
               active={currentTurn === 'user' && !gameResult}
             />
-            {userCapturedTotal > 0 && (
-              <div className="flex flex-wrap items-center justify-end gap-0.5 p-1 bg-black/20 rounded-lg max-w-[60vw] max-h-9 overflow-hidden">
-                {[...userCaptured.gwang, ...userCaptured.yeol, ...userCaptured.tti, ...userCaptured.pi].map((card, idx) => (
-                  <CardView key={`my-cap-${card.id}-${idx}`} card={card} size="xs" disabled={true} hideInfo={true} />
-                ))}
-              </div>
-            )}
+            <CapturedStack captured={userCaptured} align="right" />
           </div>
 
           <div className="flex items-center justify-between text-[10px] text-[#A5C7B5]">
