@@ -1033,45 +1033,57 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           </div>
         </div>
 
-        {/* Center: Deck + Floor — 덱을 가운데 두고 바닥패를 위/아래로 감싸는 대칭 구도 (컴팩트 xs 카드로 스크롤 없이 표시) */}
-        <div className="relative z-10 my-1.5 mx-3.5 px-3 py-1.5 bg-black/25 rounded-xl border border-white/10 flex-1 flex flex-col items-center justify-center gap-1">
-          <div className="w-full flex items-center justify-between text-[10px] text-[#A5C7B5]">
-            <span className="font-bold text-[#FAF6EC]">바닥패 ({floorCards.length}장)</span>
-            {lastDeckCard && (
-              <span className="text-[#F3D999] truncate max-w-[55%]">뒤집힘: <b className="underline">{lastDeckCard.name}</b></span>
-            )}
+        {/* Center: 핵심 승부처(좌) + Deck/Floor(우) — 별도 줄 대신 바닥패 영역 왼쪽에 이유를 붙이고
+            바닥패는 오른쪽으로 시프트해, 손패가 두 줄로 늘어나도 세로 공간이 추가로 늘지 않게 한다. */}
+        <div className="relative z-10 my-1.5 mx-3.5 px-2.5 py-1.5 bg-black/25 rounded-xl border border-white/10 flex-1 flex items-stretch gap-2">
+          {/* 핵심 승부처 (이유 보기 1번 항목 내용을 상시 표시) */}
+          <div className="w-[34%] shrink-0 flex flex-col justify-center border-r border-white/10 pr-2">
+            <div className="text-[9.5px] font-bold text-[#F3D999] mb-0.5">💡 핵심 승부처</div>
+            <div className="text-[10px] leading-snug text-white/85 line-clamp-6">
+              {bestRecommendation.primaryReason}
+            </div>
           </div>
 
-          {/* 위쪽 바닥패 줄 */}
-          <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem]">
-            {floorTop.map(card => (
-              <CardView key={card.id} card={card} size="xs" disabled={true} />
-            ))}
-          </div>
+          {/* 바닥패 + 덱 (오른쪽으로 시프트) */}
+          <div className="flex-1 min-w-0 flex flex-col items-center justify-center gap-1">
+            <div className="w-full flex items-center justify-between text-[10px] text-[#A5C7B5]">
+              <span className="font-bold text-[#FAF6EC]">바닥패 ({floorCards.length}장)</span>
+              {lastDeckCard && (
+                <span className="text-[#F3D999] truncate max-w-[55%]">뒤집힘: <b className="underline">{lastDeckCard.name}</b></span>
+              )}
+            </div>
 
-          {/* 가운데 덱 */}
-          <div className="shrink-0 flex items-center gap-1.5">
-            {showDeckTopCard && remainingDeck.length > 0 ? (
-              <CardView card={remainingDeck[0]} size="xs" disabled={true} />
-            ) : (
-              <div className="w-8 h-12 bg-[#9C3131] border border-[#FAF6EC]/30 rounded-sm shadow flex items-center justify-center text-white text-[8px] font-bold text-center leading-tight px-0.5">
-                덱{remainingDeck.length}
-              </div>
-            )}
-            <span className="text-[9px] text-white/60 leading-tight">
-              {showDeckTopCard && remainingDeck.length > 0 ? '다음 뒤집힐 패' : '뒤집기 대기'}
-            </span>
-          </div>
-
-          {/* 아래쪽 바닥패 줄 */}
-          <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem]">
-            {floorBottom.length > 0 ? (
-              floorBottom.map(card => (
+            {/* 위쪽 바닥패 줄 */}
+            <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem]">
+              {floorTop.map(card => (
                 <CardView key={card.id} card={card} size="xs" disabled={true} />
-              ))
-            ) : floorTop.length === 0 ? (
-              <div className="text-[10.5px] text-white/60 py-1">바닥이 비었습니다 (싹쓸이 상황!)</div>
-            ) : null}
+              ))}
+            </div>
+
+            {/* 가운데 덱 */}
+            <div className="shrink-0 flex items-center gap-1.5">
+              {showDeckTopCard && remainingDeck.length > 0 ? (
+                <CardView card={remainingDeck[0]} size="xs" disabled={true} />
+              ) : (
+                <div className="w-8 h-12 bg-[#9C3131] border border-[#FAF6EC]/30 rounded-sm shadow flex items-center justify-center text-white text-[8px] font-bold text-center leading-tight px-0.5">
+                  덱{remainingDeck.length}
+                </div>
+              )}
+              <span className="text-[9px] text-white/60 leading-tight">
+                {showDeckTopCard && remainingDeck.length > 0 ? '다음 뒤집힐 패' : '뒤집기 대기'}
+              </span>
+            </div>
+
+            {/* 아래쪽 바닥패 줄 */}
+            <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem]">
+              {floorBottom.length > 0 ? (
+                floorBottom.map(card => (
+                  <CardView key={card.id} card={card} size="xs" disabled={true} />
+                ))
+              ) : floorTop.length === 0 ? (
+                <div className="text-[10.5px] text-white/60 py-1">바닥이 비었습니다 (싹쓸이 상황!)</div>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -1117,12 +1129,9 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           </div>
         </div>
 
-        {/* Bottom bar: 핵심 승부처(이유 보기 1번 항목 내용)를 상시 표시 + 자동 진행 */}
-        <div className="relative z-10 shrink-0 flex items-center justify-between gap-2 px-3.5 py-1.5 mt-1 bg-black/30 border-t border-white/10 text-[10.5px] text-[#FAF6EC]">
-          <span className="truncate flex-1">
-            <b className="text-[#F3D999]">💡 핵심 승부처</b> · {bestRecommendation.primaryReason}
-          </span>
-          {autoMode && isUserTurn && userHand.length > 0 && (
+        {/* Bottom bar: 자동 모드일 때만 표시 (핵심 승부처는 바닥패 옆으로 이동해 별도 줄을 쓰지 않는다) */}
+        {autoMode && isUserTurn && userHand.length > 0 && (
+          <div className="relative z-10 shrink-0 flex items-center justify-end gap-2 px-3.5 py-1.5 mt-1 bg-black/30 border-t border-white/10 text-[10.5px] text-[#FAF6EC]">
             <button
               type="button"
               onClick={() => applyPlay('user', bestRecommendation.card)}
@@ -1130,8 +1139,8 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             >
               🤖 AI 추천대로 진행 →
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Reason Detail Modal */}
