@@ -934,23 +934,9 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         {/* Subtle Felt Texture Vignette */}
         <div className="absolute inset-0 bg-radial from-transparent via-black/10 to-black/35 pointer-events-none" />
 
-        {/* Top status strip: 훈수패 요약 + 현재 차례 (자세한 근거는 모달) */}
-        <div className="relative z-10 shrink-0 flex items-center justify-between gap-2 px-3.5 py-1.5 bg-black/30 border-b border-white/10 text-[11px]">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="font-bold text-[#F4EEDC] shrink-0">훈수패 추천</span>
-            <span className="text-[#7A7466] shrink-0">·</span>
-            <span className="font-bold text-[#F3D999] shrink-0 truncate max-w-[32vw]">
-              {bestRecommendation.card.name}
-            </span>
-            <span className="text-white/40 shrink-0">|</span>
-            <span className="shrink-0">
-              승률 <b className="text-white tabular-nums">{bestRecommendation.winRate}%</b>
-            </span>
-            <span className="text-white/40 shrink-0">|</span>
-            <span className={`shrink-0 font-bold ${isUserTurn ? 'text-[#F3D999]' : 'text-white/70'}`}>
-              {gameResult ? '게임 종료' : pendingGoStop ? `${PLAYER_LABEL[pendingGoStop]} 고/스톱 결정 중…` : `${PLAYER_LABEL[currentTurn]} 차례`}
-            </span>
-          </div>
+        {/* Top status strip: 이유 보기 / 설정 / 전체화면 버튼만 표시 (훈수패 요약·차례 텍스트는 좁은 화면에서 버튼과
+            겹쳐 보이는 문제가 있어 제거 — 추천 근거는 '이유 보기'에서, 차례는 아래 배지 강조로 이미 알 수 있다) */}
+        <div className="relative z-10 shrink-0 flex items-center justify-end gap-2 px-3.5 py-1.5 bg-black/30 border-b border-white/10 text-[11px]">
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
@@ -1145,27 +1131,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           )}
         </div>
       </div>
-
-      {/* 손패 전체 순위 비교 (슬림 바, 전체화면에서는 숨김) */}
-      {!isFullscreen && recommendations.length > 1 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-          <span className="shrink-0 font-semibold text-[#7A7466]">순위 비교:</span>
-          {recommendations.slice(0, 4).map((rec, index) => (
-            <div
-              key={rec.card.id}
-              className={`shrink-0 px-2.5 py-1 rounded-lg border flex items-center gap-1.5 whitespace-nowrap ${
-                index === 0
-                  ? 'bg-[#FAF6EC] border-[#A9791C] font-semibold text-[#A9791C]'
-                  : 'bg-white border-[#E5DFCE] text-[#555]'
-              }`}
-            >
-              <span className="font-bold">{index + 1}위</span>
-              <span>{rec.card.name}</span>
-              <span className="font-mono tabular-nums">{rec.winRate}%</span>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Reason Detail Modal */}
       <ReasonModal
