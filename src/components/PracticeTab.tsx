@@ -1117,9 +1117,11 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           </div>
         </div>
 
-        {/* Bottom bar: action log + 자동 진행 */}
+        {/* Bottom bar: 핵심 승부처(이유 보기 1번 항목 내용)를 상시 표시 + 자동 진행 */}
         <div className="relative z-10 shrink-0 flex items-center justify-between gap-2 px-3.5 py-1.5 mt-1 bg-black/30 border-t border-white/10 text-[10.5px] text-[#FAF6EC]">
-          <span className="truncate flex-1">{actionLog}</span>
+          <span className="truncate flex-1">
+            <b className="text-[#F3D999]">💡 핵심 승부처</b> · {bestRecommendation.primaryReason}
+          </span>
           {autoMode && isUserTurn && userHand.length > 0 && (
             <button
               type="button"
