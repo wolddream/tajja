@@ -14,6 +14,8 @@ interface NavigationProps {
   isAdmin: boolean;
   currentUser: AuthUser | null;
   onLogout: () => void;
+  // 게임(연습) 화면에서는 이 상단 바를 숨기고, 같은 기능(경험치/로그아웃)을 게임 화면 안에 표시한다.
+  hideTopBar?: boolean;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -25,6 +27,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   isAdmin,
   currentUser,
   onLogout,
+  hideTopBar = false,
 }) => {
   // 경험치 게이지 퍼센트 (프로필 화면과 동일한 계산식: 다음 레벨의 "경기 진행 횟수" 기준)
   const currentReq = LEVEL_REQUIREMENTS.find(r => r.level === userLevel) || LEVEL_REQUIREMENTS[0];
@@ -54,7 +57,8 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   return (
     <>
-      {/* Strict Top Bar Contract: 3 zones */}
+      {/* Strict Top Bar Contract: 3 zones (게임/연습 화면에서는 숨김 — 같은 기능이 게임 화면 안에 있다) */}
+      {!hideTopBar && (
       <header className="sticky top-0 z-40 bg-[#FAF6EC]/95 backdrop-blur-xs border-b border-[#DDD4C0] px-4 sm:px-8 py-3.5">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {/* Zone 1: Single text element wordmark */}
@@ -149,6 +153,7 @@ export const Navigation: React.FC<NavigationProps> = ({
           </div>
         </div>
       </header>
+      )}
 
       {/* Bottom Tab Navigation Bar (Mobile) */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#FAF6EC] border-t border-[#DDD4C0] px-2 py-1 shadow-lg md:hidden">

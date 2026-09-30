@@ -201,9 +201,11 @@ export default function App() {
   }
 
   // 2) MAIN APP (Authenticated)
+  const isPracticeTab = currentTab === 'practice';
+
   return (
-    <div className="min-h-screen bg-[#FAF6EC] text-[#222222] flex flex-col font-sans selection:bg-[#A9791C]/20 selection:text-[#A9791C]">
-      {/* Top Navigation */}
+    <div className="min-h-screen bg-[#FAF6EC] text-[#222222] flex flex-col font-sans selection:bg-[#A9791C]/20 selection:text-[#A9791C] relative">
+      {/* Top Navigation — 연습(게임) 화면에서는 메뉴를 게임 화면 안으로 옮기고 상단 바는 숨긴다 */}
       <Navigation
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
@@ -213,14 +215,20 @@ export default function App() {
         isAdmin={isAdmin}
         currentUser={authUser}
         onLogout={handleLogout}
+        hideTopBar={isPracticeTab}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 pt-5 pb-20 md:pb-10">
+      <main className={`flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 pb-20 md:pb-10 ${isPracticeTab ? 'pt-2' : 'pt-5'}`}>
         {currentTab === 'practice' && (
           <PracticeTab
             onIncrementGameCount={handleIncrementGameCount}
             onIncrementReasonCount={handleIncrementReasonCount}
+            userLevel={userProfile.level}
+            totalGames={userProfile.totalGames}
+            currentUser={authUser}
+            onOpenProfile={() => setCurrentTab('profile')}
+            onLogout={handleLogout}
           />
         )}
 

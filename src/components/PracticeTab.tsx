@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { HwatuCard, GameMode } from '../types/hwatu';
+import { HwatuCard, GameMode, AuthUser } from '../types/hwatu';
 import { HWATU_DECK, shuffleDeck } from '../utils/hwatuData';
 import { evaluateHand } from '../utils/engine';
 import { calculateScore, STOP_THRESHOLD, ScoreBreakdown } from '../utils/scoring';
+import { LEVEL_REQUIREMENTS } from '../utils/storage';
 import { CardView } from './CardView';
 import { ReasonModal } from './ReasonModal';
 import { playCardSnap, playCapture, playClick } from '../utils/sound';
@@ -10,6 +11,12 @@ import { playCardSnap, playCapture, playClick } from '../utils/sound';
 interface PracticeTabProps {
   onIncrementGameCount: () => void;
   onIncrementReasonCount: () => void;
+  // 사이트 상단 메뉴(경험치/레벨/로그아웃)를 게임 화면 안으로 옮겨오기 위한 값들
+  userLevel: number;
+  totalGames: number;
+  currentUser: AuthUser | null;
+  onOpenProfile: () => void;
+  onLogout: () => void;
 }
 
 type PlayerKey = 'user' | 'opp1' | 'opp2';
@@ -302,6 +309,8 @@ const SettingsModal: React.FC<{
   onNewGame: () => void;
   onLoadScenario: (type: 'godori' | 'hongdan' | 'puck') => void;
   onClose: () => void;
+  currentUser: AuthUser | null;
+  onLogout: () => void;
 }> = ({
   gameMode,
   onModeChange,
@@ -314,6 +323,8 @@ const SettingsModal: React.FC<{
   onNewGame,
   onLoadScenario,
   onClose,
+  currentUser,
+  onLogout,
 }) => (
   <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
     <div
@@ -436,6 +447,19 @@ const SettingsModal: React.FC<{
       >
         🔄 새 대국 시작
       </button>
+
+      {currentUser && (
+        <div className="flex items-center justify-between gap-2 pt-3 border-t border-[#E5DFCE] text-xs text-[#7A7466]">
+          <span className="truncate">{currentUser.name} · {currentUser.email}</span>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="shrink-0 px-2.5 py-1.5 rounded-lg bg-white border border-[#DDD4C0] hover:border-[#9C3131] hover:text-[#9C3131] text-[11px] text-[#7A7466] transition-colors cursor-pointer"
+          >
+            로그아웃
+          </button>
+        </div>
+      )}
     </div>
   </div>
 );
@@ -472,7 +496,24 @@ const CoreReasonModal: React.FC<{ cardName: string; winRate: number; text: strin
 export const PracticeTab: React.FC<PracticeTabProps> = ({
   onIncrementGameCount,
   onIncrementReasonCount,
+  userLevel,
+  totalGames,
+  currentUser,
+  onOpenProfile,
+  onLogout,
 }) => {
+  // 경험치 게이지 퍼센트 (Navigation.tsx와 동일한 계산식)
+  const currentReq = LEVEL_REQUIREMENTS.find(r => r.level === userLevel) || LEVEL_REQUIREMENTS[0];
+  const nextReq = LEVEL_REQUIREMENTS.find(r => r.level === userLevel + 1);
+  const isMaxLevel = !nextReq;
+  const targetGames = nextReq ? nextReq.gamesRequired : currentReq.gamesRequired;
+  const xpPct = isMaxLevel
+    ? 100
+    : Math.min(100, Math.max(0, Math.round((totalGames / targetGames) * 100)));
+  const XP_RING_RADIUS = 15;
+  const XP_RING_CIRCUMFERENCE = 2 * Math.PI * XP_RING_RADIUS;
+  const xpRingOffset = XP_RING_CIRCUMFERENCE - (xpPct / 100) * XP_RING_CIRCUMFERENCE;
+
   // Game settings
   const [gameMode, setGameMode] = useState<GameMode>('matgo');
   const [showOpponentCards, setShowOpponentCards] = useState<boolean>(false);
@@ -1010,9 +1051,44 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         {/* Subtle Felt Texture Vignette */}
         <div className="absolute inset-0 bg-radial from-transparent via-black/10 to-black/35 pointer-events-none" />
 
-        {/* Top status strip: 이유 보기 / 설정 / 전체화면 버튼만 표시 (훈수패 요약·차례 텍스트는 좁은 화면에서 버튼과
-            겹쳐 보이는 문제가 있어 제거 — 추천 근거는 '이유 보기'에서, 차례는 아래 배지 강조로 이미 알 수 있다) */}
-        <div className="relative z-10 shrink-0 flex items-center justify-end gap-2 px-3.5 py-1.5 bg-black/30 border-b border-white/10 text-[11px]">
+        {/* "훈수패" 이름을 상단 메뉴 대신 배경에 크고 연하게 워터마크로 표시 (펠트 바탕 위에 은은하게) */}
+        <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none select-none">
+          <span className="text-[20vw] sm:text-[9rem] leading-none font-black text-white/[0.05] font-serif whitespace-nowrap">
+            훈수패
+          </span>
+        </div>
+
+        {/* Top status strip: 사이트 상단 메뉴(경험치)를 게임 화면 안으로 옮겨와 왼쪽에 두고,
+            이유 보기 / 설정 / 전체화면 버튼은 오른쪽에 둔다. (훈수패 요약·차례 텍스트는 좁은 화면에서
+            버튼과 겹쳐 보이는 문제가 있어 제거 — 추천 근거는 '이유 보기'에서, 차례는 아래 배지 강조로 이미 알 수 있다) */}
+        <div className="relative z-10 shrink-0 flex items-center justify-between gap-2 px-3.5 py-1.5 bg-black/30 border-b border-white/10 text-[11px]">
+          <button
+            type="button"
+            onClick={onOpenProfile}
+            title={`경험치 진행률 ${xpPct}% · 눌러서 퀘스트 현황 보기`}
+            aria-label={`경험치 진행률 ${xpPct}%, 퀘스트 현황으로 이동`}
+            className="relative w-8 h-8 shrink-0 flex items-center justify-center cursor-pointer"
+          >
+            <svg viewBox="0 0 36 36" className="w-8 h-8 -rotate-90">
+              <circle cx="18" cy="18" r={XP_RING_RADIUS} fill="none" stroke="#FFFFFF" strokeOpacity="0.2" strokeWidth="3.5" />
+              <circle
+                cx="18"
+                cy="18"
+                r={XP_RING_RADIUS}
+                fill="none"
+                stroke="#F3D999"
+                strokeWidth="3.5"
+                strokeLinecap="round"
+                strokeDasharray={XP_RING_CIRCUMFERENCE}
+                strokeDashoffset={xpRingOffset}
+                className="transition-[stroke-dashoffset] duration-300"
+              />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-[7.5px] font-bold text-[#F4EEDC] tabular-nums">
+              {xpPct}%
+            </span>
+          </button>
+
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
@@ -1273,6 +1349,8 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           onNewGame={() => { playClick(); generateNewSituation(gameMode); setIsSettingsOpen(false); }}
           onLoadScenario={type => { loadScenario(type); setIsSettingsOpen(false); }}
           onClose={() => setIsSettingsOpen(false)}
+          currentUser={currentUser}
+          onLogout={onLogout}
         />
       )}
 
