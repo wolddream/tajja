@@ -21,10 +21,8 @@ interface PracticeTabProps {
 
 type PlayerKey = 'user' | 'opp1' | 'opp2';
 
-// 자동 진행 속도 (내 차례 자동 진행 + 상대 턴 + 고스톱 자동 결정에 공통 적용되는 지연 시간)
-type AutoSpeed = 'slow' | 'normal' | 'fast';
-const AUTO_SPEED_MS: Record<AutoSpeed, number> = { slow: 1500, normal: 900, fast: 400 };
-const AUTO_SPEED_LABEL: Record<AutoSpeed, string> = { slow: '🐢 느림', normal: '🚶 보통', fast: '⚡ 빠름' };
+// 자동 진행 지연 시간 (내 차례 자동 진행 + 상대 턴 + 고스톱 자동 결정에 공통 적용). 느림으로 고정.
+const AUTO_DELAY_MS = 1500;
 
 interface CapturedSummary {
   gwang: HwatuCard[];
@@ -505,10 +503,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [showDeckTopCard, setShowDeckTopCard] = useState<boolean>(false);
   // 수동(직접 카드 클릭) / 자동(AI 추천패로 알아서 진행) 모드
   const [autoMode, setAutoMode] = useState<boolean>(false);
-  // 자동 진행 속도 — 내 차례 자동 진행뿐 아니라 상대 턴 진행·고스톱 자동 결정에도 동일하게 적용해,
-  // 전체 게임 템포를 일관되게 조절한다.
-  const [autoSpeed, setAutoSpeed] = useState<AutoSpeed>('normal');
-  const autoDelayMs = AUTO_SPEED_MS[autoSpeed];
   // 전체화면 모드 (실제 게임 클라이언트처럼 화면을 꽉 채워서 플레이)
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   // 전체화면 전환이 실제로 끝난 시점의 뷰포트 높이(px)를 JS로 직접 측정해둔 값.
@@ -1023,10 +1017,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     if (!pendingGoStop || pendingGoStop === 'user' || gameResult) return;
     const count = goCounts[pendingGoStop];
     const choice: 'go' | 'stop' = count < 1 ? 'go' : 'stop';
-    const t = setTimeout(() => resolveGoStop(pendingGoStop, choice), autoDelayMs);
+    const t = setTimeout(() => resolveGoStop(pendingGoStop, choice), AUTO_DELAY_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingGoStop, autoDelayMs]);
+  }, [pendingGoStop]);
 
   // AI(상대1/상대2) 턴 자동 진행: 훈수 엔진을 그대로 재사용해 상대 시점에서 최적수를 계산한다.
   useEffect(() => {
@@ -1047,10 +1041,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       const captured = currentTurn === 'opp1' ? opponentCaptured : opponent2Captured;
       const { bestRecommendation } = evaluateHand(hand, floorCards, captured, userCaptured, gameMode, 'standard', [], null);
       applyPlay(currentTurn, bestRecommendation.card);
-    }, autoDelayMs);
+    }, AUTO_DELAY_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTurn, gameResult, pendingGoStop, opponentHand, opponentHand2, floorCards, autoDelayMs]);
+  }, [currentTurn, gameResult, pendingGoStop, opponentHand, opponentHand2, floorCards]);
 
   // 자동 모드에서는 내 차례에도 사용자가 버튼을 누르지 않아도 AI 추천대로 알아서 진행한다.
   useEffect(() => {
@@ -1060,10 +1054,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
 
     const t = setTimeout(() => {
       applyPlay('user', bestRecommendation.card);
-    }, autoDelayMs);
+    }, AUTO_DELAY_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoMode, currentTurn, gameResult, pendingGoStop, userHand, floorCards, autoDelayMs]);
+  }, [autoMode, currentTurn, gameResult, pendingGoStop, userHand, floorCards]);
 
   // Preset situations for deliberate practice (교육용 스냅샷 — 턴제 상태도 함께 초기화)
   const loadScenario = (type: 'godori' | 'hongdan' | 'puck') => {
@@ -1269,19 +1263,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             >
               {autoMode ? '🤖 자동' : '🖐️ 수동'}
             </button>
-            {autoMode && (
-              <button
-                type="button"
-                onClick={() => {
-                  playClick();
-                  setAutoSpeed(prev => (prev === 'slow' ? 'normal' : prev === 'normal' ? 'fast' : 'slow'));
-                }}
-                aria-label="자동 진행 속도 변경 (탭하여 순환)"
-                className="shrink-0 px-2.5 py-1 rounded-md bg-black/40 hover:bg-black/60 border border-white/20 text-white text-[10.5px] font-bold cursor-pointer whitespace-nowrap"
-              >
-                {AUTO_SPEED_LABEL[autoSpeed]}
-              </button>
-            )}
             <button
               type="button"
               onClick={handleOpenReason}
