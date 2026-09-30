@@ -1072,12 +1072,12 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             <button
               type="button"
               onClick={() => { playClick(); setIsCoreReasonOpen(true); }}
-              className="flex items-center gap-1 mb-0.5 text-[9.5px] font-bold text-[#F3D999] cursor-pointer w-fit"
+              className="flex items-center gap-1 mb-0.5 text-[11px] font-bold text-[#F3D999] cursor-pointer w-fit"
             >
               <span>💡 핵심 승부처</span>
               <span aria-label="전체 내용 크게 보기" className="shrink-0">🔍</span>
             </button>
-            <div className="text-[10px] leading-snug text-white/85 line-clamp-6">
+            <div className="text-[11.5px] leading-snug text-white/85 line-clamp-5">
               {bestRecommendation.primaryReason}
             </div>
           </div>
@@ -1091,25 +1091,18 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               )}
             </div>
 
-            {/* 위쪽 바닥패 줄 */}
+            {/* 위쪽 바닥패 줄 + 덱 (같은 행에 배치해 별도 줄을 없애고 세로 공간을 아낀다) */}
             <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem]">
               {floorTop.map(card => (
                 <CardView key={card.id} card={card} size="xs" disabled={true} />
               ))}
-            </div>
-
-            {/* 가운데 덱 */}
-            <div className="shrink-0 flex items-center gap-1.5">
               {showDeckTopCard && remainingDeck.length > 0 ? (
                 <CardView card={remainingDeck[0]} size="xs" disabled={true} />
               ) : (
-                <div className="w-8 h-12 bg-[#9C3131] border border-[#FAF6EC]/30 rounded-sm shadow flex items-center justify-center text-white text-[8px] font-bold text-center leading-tight px-0.5">
+                <div className="w-8 h-12 shrink-0 bg-[#9C3131] border border-[#FAF6EC]/30 rounded-sm shadow flex items-center justify-center text-white text-[8px] font-bold text-center leading-tight px-0.5">
                   덱{remainingDeck.length}
                 </div>
               )}
-              <span className="text-[9px] text-white/60 leading-tight">
-                {showDeckTopCard && remainingDeck.length > 0 ? '다음 뒤집힐 패' : '뒤집기 대기'}
-              </span>
             </div>
 
             {/* 아래쪽 바닥패 줄 */}
