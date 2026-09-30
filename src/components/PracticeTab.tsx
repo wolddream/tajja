@@ -905,7 +905,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       {/* Main Playing Table Arena — 실제 게임 클라이언트 구도(코너 아바타 + 대칭 바닥패) 참고, 한 화면에 다 들어오도록 컴팩트 레이아웃 */}
       <div
         className="bg-[#2D4536] border-4 border-[#3D2817] rounded-2xl shadow-xl text-white relative overflow-hidden flex flex-col"
-        style={{ maxHeight: isFullscreen ? 'calc(100vh - 24px)' : 'min(82vh, 720px)', height: isFullscreen ? 'calc(100vh - 24px)' : undefined }}
+        style={{
+          maxHeight: isFullscreen ? 'calc(100dvh - 24px)' : 'min(82vh, 720px)',
+          height: isFullscreen ? 'calc(100dvh - 24px)' : undefined,
+        }}
       >
         {/* Subtle Felt Texture Vignette */}
         <div className="absolute inset-0 bg-radial from-transparent via-black/10 to-black/35 pointer-events-none" />
