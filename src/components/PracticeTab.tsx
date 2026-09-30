@@ -938,10 +938,12 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           </div>
         </div>
 
-        {/* Opponent Area — 코너 아바타 배지 구도 (상대1/상대2 색상·글자로 확실히 구분) */}
+        {/* Opponent Area — 코너 아바타 배지 구도 (상대1/상대2 색상·글자로 확실히 구분).
+            상대1/상대2 칸을 flex-1 + min-w-0 + overflow-hidden으로 폭을 균등 분배해,
+            한쪽 먹은 패가 많아져도 다른 쪽을 밀어내거나 화면 밖으로 잘리지 않게 한다. */}
         <div className="relative z-10 shrink-0 px-3.5 pt-2 space-y-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex flex-col items-start gap-1">
+          <div className="flex items-start gap-2">
+            <div className="flex-1 min-w-0 overflow-hidden flex flex-col items-start gap-1">
               <PlayerBadge
                 label="상대1"
                 sub={showOpponentCards ? '패 공개' : '비공개'}
@@ -953,7 +955,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             </div>
 
             {gameMode === 'gostop3' ? (
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex-1 min-w-0 overflow-hidden flex flex-col items-end gap-1">
                 <PlayerBadge
                   label="상대2"
                   sub={showOpponentCards ? '패 공개' : '비공개'}
@@ -972,27 +974,30 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             )}
           </div>
 
-          <div className="flex items-center">
-            <HandStack
-              cards={opponentHand}
-              isHidden={!showOpponentCards}
-              colorClass="bg-[#9C3131]"
-              borderClass="border-[#7D2626]"
-              align="left"
-            />
-          </div>
-
-          {gameMode === 'gostop3' && (
-            <div className="flex items-center">
+          {/* 안 낸 패(손패) — 상대1/상대2를 같은 행, 같은 세로 위치에 나란히 배치해 공간을 최적화 */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0 overflow-hidden">
               <HandStack
-                cards={opponentHand2}
+                cards={opponentHand}
                 isHidden={!showOpponentCards}
-                colorClass="bg-[#2B5F8A]"
-                borderClass="border-[#1E4A6B]"
-                align="right"
+                colorClass="bg-[#9C3131]"
+                borderClass="border-[#7D2626]"
+                align="left"
               />
             </div>
-          )}
+
+            {gameMode === 'gostop3' && (
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <HandStack
+                  cards={opponentHand2}
+                  isHidden={!showOpponentCards}
+                  colorClass="bg-[#2B5F8A]"
+                  borderClass="border-[#1E4A6B]"
+                  align="right"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Center: Deck + Floor — 덱을 가운데 두고 바닥패를 위/아래로 감싸는 대칭 구도 (컴팩트 xs 카드로 스크롤 없이 표시) */}
