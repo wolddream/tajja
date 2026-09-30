@@ -104,9 +104,13 @@ export const RulesTab: React.FC = () => {
       {/* 특수 룰 & 승리 기준 */}
       <div className="bg-[#FAF6EC] border border-[#E5DFCE] rounded-2xl p-5 space-y-2">
         <h3 className="font-bold text-sm text-[#1F1F1F]">⚡ 특수 룰</h3>
-        <p className="text-xs text-[#444] leading-relaxed">
-          바닥패와 뒤집은 덱패의 월이 일치하는 <strong>뻑</strong>(다음 턴 선취 시 피 뺏기 포함), 같은 월 패를 3장 들고 있을 때 알리는 <strong>흔들기</strong>, 바닥을 전부 비우는 <strong>싹쓸이</strong>(상대 피 1장 강탈) 등이 있습니다.
-        </p>
+        <ul className="text-xs text-[#444] leading-relaxed space-y-1.5 list-disc pl-4">
+          <li><strong>뻑</strong>: 바닥의 짝 1장을 손패로 먹으려는 순간, 바로 다음에 뒤집는 덱패도 같은 월이면 셋 다(낸 패+바닥패+덱패) 먹지 못하고 바닥에 그대로 쌓입니다. 나중에 그 월의 마지막 패가 나올 때 4장을 한꺼번에 쓸어갑니다.</li>
+          <li><strong>따닥</strong>: 손패와 뒤집은 덱패가 각각 독립적으로 바닥 패를 먹으면(한 턴에 둘 다 성공), 상대 전원에게서 피를 1장씩 받아옵니다.</li>
+          <li><strong>쪽</strong>: 짝이 없어 그냥 냈는데 뒤집은 덱패가 그 패와 맞아떨어지면, 역시 피를 1장씩 받아옵니다.</li>
+          <li><strong>흔들기</strong>: 같은 월 패를 3장 들고 있을 때 선언할 수 있으며, 그 판을 이기면 최종 점수가 선언 횟수만큼 2배씩 불어납니다.</li>
+          <li><strong>싹쓸이</strong>: 바닥을 완전히 비우면(상대 피 1장씩 강탈) 보너스가 적용됩니다.</li>
+        </ul>
         <div className="pt-2 mt-1 border-t border-[#E5DFCE] text-xs font-semibold text-[#A9791C]">
           승리 점수 기준: 맞고 7점 이상 / 3인 고스톱 3점 이상
         </div>

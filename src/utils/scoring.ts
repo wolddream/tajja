@@ -1,4 +1,4 @@
-import { HwatuCard } from '../types/hwatu';
+import { HwatuCard, GameMode } from '../types/hwatu';
 
 interface CapturedSummary {
   gwang: HwatuCard[];
@@ -21,8 +21,13 @@ export interface ScoreBreakdown {
   chodan: boolean;
 }
 
-// 스톱 선언이 가능한 최소 점수 (국룰 기준 7점)
-export const STOP_THRESHOLD = 7;
+// 스톱 선언이 가능한 최소 점수. 맞고(2인)는 7점, 3인 고스톱은 3점부터로 서로 다르다
+// (실제 국룰 기준 — 이전에는 게임 모드와 무관하게 7점으로 고정되어 있던 오류를 수정함).
+export const getStopThreshold = (gameMode: GameMode): number => (gameMode === 'gostop3' ? 3 : 7);
+
+// 피박 기준 장수(미만이면 피박). 맞고는 7장 미만, 3인 고스톱은 5장 미만
+// (이전에는 게임 모드와 무관하게 5장으로 고정되어 있던 오류를 수정함).
+export const getPiBakThreshold = (gameMode: GameMode): number => (gameMode === 'gostop3' ? 5 : 7);
 
 export const calculateScore = (captured: CapturedSummary): ScoreBreakdown => {
   const gwangCount = captured.gwang.length;

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { HwatuCard, GameMode, AuthUser } from '../types/hwatu';
 import { HWATU_DECK, shuffleDeck } from '../utils/hwatuData';
 import { evaluateHand } from '../utils/engine';
-import { calculateScore, STOP_THRESHOLD, ScoreBreakdown } from '../utils/scoring';
+import { calculateScore, getStopThreshold, getPiBakThreshold, ScoreBreakdown } from '../utils/scoring';
 import { LEVEL_REQUIREMENTS } from '../utils/storage';
 import { CardView } from './CardView';
 import { ReasonModal } from './ReasonModal';
@@ -32,11 +32,16 @@ const EMPTY_CAPTURED: CapturedSummary = { gwang: [], yeol: [], tti: [], pi: [] }
 
 const PLAYER_LABEL: Record<PlayerKey, string> = { user: '나', opp1: '상대1', opp2: '상대2' };
 
-// 바닥에 같은 월 패가 "정확히 2장" 있을 때는 실제 고스톱 규칙상 둘 다가 아니라 하나만 가져올 수 있다
-// (3장이면 전부 쓸어 담는 것과 다름). 상대(AI)는 자동으로 가치가 더 높은 패를 고른다
-// (광 > 열끗/고도리 > 띠/단 > 피 순 — HwatuCard.scoreVal 기준).
-const pickBestCapture = (options: HwatuCard[]): HwatuCard =>
-  options.reduce((best, c) => (c.scoreVal > best.scoreVal ? c : best));
+// 한 손패(hand)를 월별로 묶는다. 흔들기(같은 월 3장) 판정에 사용.
+const groupByMonth = (cards: HwatuCard[]): Map<number, HwatuCard[]> => {
+  const map = new Map<number, HwatuCard[]>();
+  cards.forEach(c => {
+    const list = map.get(c.month) ?? [];
+    list.push(c);
+    map.set(c.month, list);
+  });
+  return map;
+};
 
 // 상대/내 정보 배지 (실제 게임 클라이언트의 아바타 카드 느낌). 상대1/상대2는 색상과 아바타 글자를 다르게 표시해 확실히 구분한다.
 // 원래는 아바타 원+박스 배지였으나, 그 자리를 손패/먹은 패 표시 공간으로 더 쓰기 위해
@@ -162,44 +167,19 @@ const CapturedStack: React.FC<{ captured: CapturedSummary; align?: 'left' | 'rig
   );
 };
 
-// 바닥에 같은 월 패가 "정확히 2장" 깔려있을 때, 내 차례라면 둘 중 어느 패를 가져올지 직접 고르는 팝업.
-// (손패로 낸 패와 매치될 때, 그리고 뒤집은 덱패와 매치될 때 둘 다 같은 규칙이 적용된다.)
-const CaptureChoiceModal: React.FC<{
-  playedCard: HwatuCard;
-  options: HwatuCard[];
-  onChoose: (card: HwatuCard) => void;
-}> = ({ playedCard, options, onChoose }) => (
-  <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4">
-    <div className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-sm w-full p-5 text-center space-y-3">
-      <div className="text-xs font-bold text-[#A9791C]">🀄 같은 월 패가 2장! 가져올 패를 고르세요</div>
-      <div className="text-[11px] text-[#7A7466] leading-relaxed">
-        낸 패: <b className="text-[#1F1F1F]">{playedCard.name}</b> · 바닥에 같은 {playedCard.month}월 패가 2장 있어 하나만 가져올 수 있습니다.
-      </div>
-      <div className="flex items-center justify-center gap-5 pt-1">
-        {options.map(card => (
-          <div key={card.id} className="flex flex-col items-center gap-1.5">
-            <CardView card={card} size="md" hideInfo onClick={() => onChoose(card)} />
-            <span className="text-[10px] font-bold text-[#A9791C]">이 패 가져오기</span>
-          </div>
-        ))}
-      </div>
-      <p className="text-[10px] text-[#7A7466]">선택하지 않은 패는 바닥에 그대로 남습니다.</p>
-    </div>
-  </div>
-);
-
-// 고/스톱 선택 모달 (사용자 차례에서 7점 이상 달성 시 표시)
+// 고/스톱 선택 모달 (사용자 차례에서 기준 점수 이상 달성 시 표시)
 const GoStopModal: React.FC<{
   score: ScoreBreakdown;
   goCount: number;
+  threshold: number;
   onGo: () => void;
   onStop: () => void;
   // 고를 외쳤을 때 이어질 다음 수의 핵심 승부처(이유 보기 1번 항목과 동일한 내용)를 함께 보여준다.
   coreReason?: string;
-}> = ({ score, goCount, onGo, onStop, coreReason }) => (
+}> = ({ score, goCount, threshold, onGo, onStop, coreReason }) => (
   <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4">
     <div className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-sm w-full p-5 text-center space-y-3">
-      <div className="text-xs font-bold text-[#A9791C]">🎉 {STOP_THRESHOLD}점 달성!</div>
+      <div className="text-xs font-bold text-[#A9791C]">🎉 {threshold}점 달성!</div>
       <div className="text-2xl font-black text-[#222]">현재 {score.total}점{goCount > 0 ? ` (${goCount}고 진행 중)` : ''}</div>
       <p className="text-xs text-[#555] leading-relaxed">
         여기서 <b>스톱</b>하면 지금까지 점수를 그대로 획득합니다.
@@ -461,7 +441,7 @@ const SettingsModal: React.FC<{
             onClick={() => onLoadScenario('puck')}
             className="px-2.5 py-1.5 rounded-md bg-white border border-[#DDD4C0] hover:border-[#A9791C] text-[#222] text-xs text-left cursor-pointer"
           >
-            💥 3장 겹친 뻑 먹기 찬스
+            💥 바닥 3장 한번에 쓸어담기 찬스
           </button>
         </div>
       </div>
@@ -654,17 +634,15 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   );
   const [currentTurn, setCurrentTurn] = useState<PlayerKey>('user');
   const [goCounts, setGoCounts] = useState<Record<PlayerKey, number>>({ user: 0, opp1: 0, opp2: 0 });
+  // 흔들기(같은 월 3장을 손에 들고 있을 때 선언) 횟수와, 이미 선언한 월(중복 선언 방지).
+  const [shakeCounts, setShakeCounts] = useState<Record<PlayerKey, number>>({ user: 0, opp1: 0, opp2: 0 });
+  const [shakenMonths, setShakenMonths] = useState<Record<PlayerKey, Set<number>>>({
+    user: new Set(), opp1: new Set(), opp2: new Set(),
+  });
+  // 뻑/따닥/쪽/싹쓸이 등 특수 상황이 발생했을 때 잠깐 띄우는 알림 배너.
+  const [eventBanner, setEventBanner] = useState<string | null>(null);
   const [pendingGoStop, setPendingGoStop] = useState<PlayerKey | null>(null);
   const [pendingScore, setPendingScore] = useState<ScoreBreakdown | null>(null);
-  // 바닥에 같은 월 패가 정확히 2장 있어 내 차례에 직접 골라야 할 때 사용하는 상태.
-  // forcedHandChoice는 "손패 매치" 단계에서 이미 고른 결과를 "덱 매치" 단계로 이어 넘기기 위한 값이다.
-  const [pendingCapture, setPendingCapture] = useState<{
-    playerKey: PlayerKey;
-    card: HwatuCard;
-    stage: 'hand' | 'deck';
-    options: HwatuCard[];
-    forcedHandChoice?: HwatuCard;
-  } | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   // 결과 모달을 닫아도 경기 판(최종 바닥패·먹은 패)은 계속 볼 수 있게, 모달 표시 여부만 따로 관리한다.
   const [resultModalOpen, setResultModalOpen] = useState<boolean>(false);
@@ -683,11 +661,21 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const resetTurnState = () => {
     setCurrentTurn('user');
     setGoCounts({ user: 0, opp1: 0, opp2: 0 });
+    setShakeCounts({ user: 0, opp1: 0, opp2: 0 });
+    setShakenMonths({ user: new Set(), opp1: new Set(), opp2: new Set() });
+    setEventBanner(null);
     setPendingGoStop(null);
     setPendingScore(null);
     setGameResult(null);
     setResultModalOpen(false);
   };
+
+  // 뻑/따닥/쪽/싹쓸이 알림 배너는 몇 초 뒤 자동으로 사라진다.
+  useEffect(() => {
+    if (!eventBanner) return;
+    const t = window.setTimeout(() => setEventBanner(null), 2600);
+    return () => window.clearTimeout(t);
+  }, [eventBanner]);
 
   // Function to deal a fresh situation
   const generateNewSituation = useCallback((mode: GameMode = gameMode) => {
@@ -782,6 +770,21 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     onIncrementReasonCount();
   };
 
+  // 흔들기 선언: 같은 월 패를 3장 들고 있을 때, 그 사실을 공개하고 선언 횟수를 기록해둔다.
+  // 실제로 이 판에서 이겼을 때만 endGame에서 선언 횟수만큼 최종 점수가 2배씩 불어난다.
+  const declareShake = (playerKey: PlayerKey, month: number) => {
+    setShakeCounts(prev => ({ ...prev, [playerKey]: prev[playerKey] + 1 }));
+    setShakenMonths(prev => {
+      const next = new Set(prev[playerKey]);
+      next.add(month);
+      return { ...prev, [playerKey]: next };
+    });
+    if (playerKey === 'user') {
+      playClick();
+      setEventBanner(`나: 🌀 ${month}월 흔들기 선언! (이 판을 이기면 점수 2배)`);
+    }
+  };
+
   // ── 게임 종료 판정 ──────────────────────────────────────────────
   const endGame = useCallback(
     (winnerKey: PlayerKey | null, finalHands: Record<PlayerKey, HwatuCard[]>, finalCaptured: Record<PlayerKey, CapturedSummary>) => {
@@ -790,26 +793,33 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         opp1: calculateScore(finalCaptured.opp1),
         opp2: calculateScore(finalCaptured.opp2),
       };
+      const stopThreshold = getStopThreshold(gameMode);
+      const piBakThreshold = getPiBakThreshold(gameMode);
 
       let winner: PlayerKey | 'draw' = 'draw';
-      let multiplier = 1;
+      let goMultiplier = 1;
 
       if (winnerKey) {
         winner = winnerKey;
-        multiplier = 1 + goCounts[winnerKey];
+        goMultiplier = 1 + goCounts[winnerKey];
       } else {
-        const candidates = turnOrder.filter(k => scores[k].total >= STOP_THRESHOLD);
+        const candidates = turnOrder.filter(k => scores[k].total >= stopThreshold);
         if (candidates.length > 0) {
           candidates.sort((a, b) => scores[b].total - scores[a].total);
           winner = candidates[0];
-          multiplier = 1 + goCounts[candidates[0]];
+          goMultiplier = 1 + goCounts[candidates[0]];
         }
       }
 
+      // 흔들기: 선언한 뒤 실제로 이긴 경우에만 선언 횟수만큼 점수가 2배씩 불어난다.
+      const shakeMultiplier = winner !== 'draw' ? Math.pow(2, shakeCounts[winner]) : 1;
+      const multiplier = goMultiplier * shakeMultiplier;
       const finalScore = winner !== 'draw' ? scores[winner].total * multiplier : 0;
 
       const badges: string[] = [];
       if (winner !== 'draw') {
+        // 광박은 승자가 광으로 점수를 냈을 때만 성립한다(승자도 광이 0장이면 광박이라는 개념 자체가 성립하지 않음).
+        const winnerScoredGwang = scores[winner].gwangScore > 0;
         turnOrder.forEach(k => {
           if (k === winner) return;
           const cap = finalCaptured[k];
@@ -818,15 +828,17 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           if (totalCaptured === 0) {
             badges.push(`${PLAYER_LABEL[k]} 멍텅구리박`);
           } else {
-            if (cap.gwang.length === 0) badges.push(`${PLAYER_LABEL[k]} 광박`);
-            if (piCount < 5) badges.push(`${PLAYER_LABEL[k]} 피박`);
+            if (winnerScoredGwang && cap.gwang.length === 0) badges.push(`${PLAYER_LABEL[k]} 광박`);
+            if (piCount < piBakThreshold) badges.push(`${PLAYER_LABEL[k]} 피박`);
           }
+          // 고박(3인 고스톱 전용): "고"를 불렀지만 결국 이기지 못하면 다른 패자 몫까지 책임진다.
+          if (gameMode === 'gostop3' && goCounts[k] > 0) badges.push(`${PLAYER_LABEL[k]} 고박`);
         });
       }
 
       setActionLog(
         winner === 'draw'
-          ? '아무도 7점을 달성하지 못한 채 패가 모두 소진되어 무승부(유찰)로 종료되었습니다.'
+          ? `아무도 ${stopThreshold}점을 달성하지 못한 채 패가 모두 소진되어 무승부(유찰)로 종료되었습니다.`
           : `${PLAYER_LABEL[winner]}이(가) ${finalScore}점으로 게임을 승리했습니다!`
       );
       setGameResult({ winner, scores, multiplier, finalScore, badges });
@@ -838,7 +850,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       onIncrementGameCount();
       void finalHands;
     },
-    [goCounts, turnOrder, onIncrementGameCount]
+    [goCounts, shakeCounts, turnOrder, gameMode, onIncrementGameCount]
   );
 
   // 다음 차례로 넘긴다. justPlayed 플레이어의 방금 낸 후 손패 장수를 overrideHandLen으로 넘기면
@@ -878,79 +890,22 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   );
 
   // ── 한 수 두기 (사용자 / AI 공통) ────────────────────────────────
+  // 실제 고스톱 규칙 (국룰 기준):
+  //  - 바닥에 같은 월 패가 몇 장(1/2/3장)이든 전부 가져온다 (낸 패 포함 2/3/4장 획득).
+  //    "2장이면 하나만" 같은 규칙은 없다 — 2장이면 3장, 3장이면 4장을 전부 먹는다.
+  //  - 뻑: 바닥의 짝 1장을 손패로 먹으려는 순간, 바로 다음에 뒤집는 덱패도 같은 월이면
+  //    셋 다(낸 패+바닥패+덱패) 먹지 못하고 바닥에 그대로 쌓인다. 나중에 그 월의 마지막
+  //    패가 나오면 그때 4장을 한꺼번에 쓸어간다.
+  //  - 따닥(손패+덱패 둘 다 성공) / 쪽(짝 없이 냈는데 덱패가 맞음) / 한 번에 3장 이상
+  //    쓸어담기 / 싹쓸이(바닥을 완전히 비움) — 이 네 가지 경우 상대 전원에게서 피를
+  //    1장씩 받아온다.
   const applyPlay = useCallback(
-    (playerKey: PlayerKey, card: HwatuCard, forcedHandChoice?: HwatuCard, forcedDeckChoice?: HwatuCard) => {
+    (playerKey: PlayerKey, card: HwatuCard) => {
       if (gameResult || pendingGoStop) return;
 
       playCardSnap();
 
       const currentHand = getHand(playerKey);
-
-      // 손패 매치: 바닥에 같은 월 패가 "정확히 2장"이면 실제 규칙상 하나만 가져올 수 있다.
-      // 내 차례라면 직접 고르게 하기 위해 일단 멈추고(팝업), 상대(AI)는 더 가치 높은 패를 자동으로 고른다.
-      const rawMatches = floorCards.filter(f => f.month === card.month);
-      let matches: HwatuCard[];
-      if (rawMatches.length === 2 && !forcedHandChoice) {
-        if (playerKey === 'user') {
-          setPendingCapture({ playerKey, card, stage: 'hand', options: rawMatches });
-          return;
-        }
-        matches = [pickBestCapture(rawMatches)];
-      } else if (rawMatches.length === 2) {
-        matches = [forcedHandChoice!];
-      } else {
-        matches = rawMatches; // 0장, 1장, 또는 3장(전부 쓸어 담기)
-      }
-
-      let newFloor = floorCards.filter(f => f.month !== card.month);
-      let capturedThisTurn: HwatuCard[] = [];
-
-      if (matches.length > 0) {
-        capturedThisTurn = [card, ...matches];
-        playCapture();
-        // 2장 중 하나만 가져온 경우, 고르지 않은 나머지 한 장은 바닥에 그대로 남는다.
-        if (rawMatches.length === 2) {
-          const leftover = rawMatches.find(c => c.id !== matches[0].id)!;
-          newFloor = [...newFloor, leftover];
-        }
-      } else {
-        newFloor = [...newFloor, card];
-      }
-
-      let flippedDeckCard: HwatuCard | null = null;
-      let newDeck = remainingDeck;
-      if (remainingDeck.length > 0) {
-        flippedDeckCard = remainingDeck[0];
-        newDeck = remainingDeck.slice(1);
-
-        // 뒤집은 덱패도 손패 매치와 동일한 "2장이면 하나만" 규칙을 적용한다.
-        const rawDeckMatches = newFloor.filter(f => f.month === flippedDeckCard!.month);
-        let deckMatches: HwatuCard[];
-        if (rawDeckMatches.length === 2 && !forcedDeckChoice) {
-          if (playerKey === 'user') {
-            setPendingCapture({ playerKey, card, stage: 'deck', options: rawDeckMatches, forcedHandChoice });
-            return;
-          }
-          deckMatches = [pickBestCapture(rawDeckMatches)];
-        } else if (rawDeckMatches.length === 2) {
-          deckMatches = [forcedDeckChoice!];
-        } else {
-          deckMatches = rawDeckMatches;
-        }
-
-        if (deckMatches.length > 0) {
-          capturedThisTurn = [...capturedThisTurn, flippedDeckCard, ...deckMatches];
-          newFloor = newFloor.filter(f => f.month !== flippedDeckCard!.month);
-          if (rawDeckMatches.length === 2) {
-            const leftover = rawDeckMatches.find(c => c.id !== deckMatches[0].id)!;
-            newFloor = [...newFloor, leftover];
-          }
-          setTimeout(() => playCapture(), 120);
-        } else {
-          newFloor = [...newFloor, flippedDeckCard];
-        }
-      }
-
       const prevCaptured = getCaptured(playerKey);
       const nextCaptured: CapturedSummary = {
         gwang: [...prevCaptured.gwang],
@@ -958,6 +913,69 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         tti: [...prevCaptured.tti],
         pi: [...prevCaptured.pi],
       };
+
+      const rawHandMatches = floorCards.filter(f => f.month === card.month);
+      const peekedDeckCard = remainingDeck[0] ?? null;
+      const isPpeok = rawHandMatches.length === 1 && !!peekedDeckCard && peekedDeckCard.month === card.month;
+
+      let newFloor: HwatuCard[];
+      let newDeck = remainingDeck;
+      let flippedDeckCard: HwatuCard | null = null;
+      let capturedThisTurn: HwatuCard[] = [];
+      let eventNote = '';
+
+      if (isPpeok) {
+        // 셋 다(낸 패 + 바닥 짝패 + 덱패) 먹지 못하고 바닥에 그대로 쌓인다.
+        newFloor = [...floorCards.filter(f => f.month !== card.month), card, rawHandMatches[0], peekedDeckCard!];
+        newDeck = remainingDeck.slice(1);
+        flippedDeckCard = peekedDeckCard;
+        eventNote = `🀄 뻑! ${card.month}월 패 3장이 바닥에 묶여 이번 턴엔 먹지 못했습니다.`;
+      } else {
+        const handMatches = rawHandMatches;
+        const handCaptured = handMatches.length > 0 ? [card, ...handMatches] : [];
+        let floorAfterPlay = handMatches.length > 0
+          ? floorCards.filter(f => f.month !== card.month)
+          : [...floorCards, card];
+        if (handCaptured.length > 0) playCapture();
+
+        let deckMatches: HwatuCard[] = [];
+        let deckCaptured: HwatuCard[] = [];
+        if (remainingDeck.length > 0) {
+          flippedDeckCard = remainingDeck[0];
+          newDeck = remainingDeck.slice(1);
+          deckMatches = floorAfterPlay.filter(f => f.month === flippedDeckCard!.month);
+          if (deckMatches.length > 0) {
+            deckCaptured = [flippedDeckCard, ...deckMatches];
+            floorAfterPlay = floorAfterPlay.filter(f => f.month !== flippedDeckCard!.month);
+            setTimeout(() => playCapture(), 120);
+          } else {
+            floorAfterPlay = [...floorAfterPlay, flippedDeckCard];
+          }
+        }
+
+        newFloor = floorAfterPlay;
+        capturedThisTurn = [...handCaptured, ...deckCaptured];
+
+        const isDdadak = handCaptured.length > 0 && deckCaptured.length > 0;
+        const isJjok = handCaptured.length === 0 && deckCaptured.length > 0;
+        const isBigSweep = handMatches.length >= 3 || deckMatches.length >= 3;
+        const isSsakssuli = floorCards.length > 0 && newFloor.length === 0;
+        const bonusTriggered = isDdadak || isJjok || isBigSweep || isSsakssuli;
+
+        if (bonusTriggered) {
+          const label = isDdadak ? '따닥' : isJjok ? '쪽' : isBigSweep ? '쓸어담기' : '싹쓸이';
+          eventNote = `✨ ${label}! 상대에게서 피 1장씩 받아옵니다.`;
+          turnOrder.filter(k => k !== playerKey).forEach(k => {
+            const theirCaptured = getCaptured(k);
+            if (theirCaptured.pi.length > 0) {
+              const stolen = theirCaptured.pi[theirCaptured.pi.length - 1];
+              setCapturedFor(k)({ ...theirCaptured, pi: theirCaptured.pi.filter(c => c.id !== stolen.id) });
+              nextCaptured.pi.push(stolen);
+            }
+          });
+        }
+      }
+
       capturedThisTurn.forEach(c => {
         if (c.type === 'gwang') nextCaptured.gwang.push(c);
         else if (c.type === 'yeol') nextCaptured.yeol.push(c);
@@ -975,14 +993,17 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       setLastDeckCard(flippedDeckCard);
       if (playerKey === 'user') setSelectedCardId(null);
 
-      const matchNote = matches.length > 0
-        ? `${PLAYER_LABEL[playerKey]}: 바닥의 ${card.month}월(${matches.map(m => m.name).join(', ')})을 먹었습니다!`
-        : `${PLAYER_LABEL[playerKey]}: 바닥에 일치하는 월이 없어 ${card.month}월을 깔았습니다.`;
-      const deckNote = flippedDeckCard ? ` 뒤집은 패: [${flippedDeckCard.name}]` : '';
-      setActionLog(`${matchNote}${deckNote}`);
+      if (eventNote) setEventBanner(`${PLAYER_LABEL[playerKey]}: ${eventNote}`);
+      setActionLog(
+        capturedThisTurn.length > 0
+          ? `${PLAYER_LABEL[playerKey]}: 바닥의 ${card.month}월 패를 먹었습니다!`
+          : isPpeok
+          ? `${PLAYER_LABEL[playerKey]}: ${card.month}월 뻑이 발생했습니다.`
+          : `${PLAYER_LABEL[playerKey]}: 바닥에 일치하는 월이 없어 ${card.month}월을 깔았습니다.`
+      );
 
       const scoreInfo = calculateScore(nextCaptured);
-      const crossedStopLine = capturedThisTurn.length > 0 && scoreInfo.total >= STOP_THRESHOLD;
+      const crossedStopLine = capturedThisTurn.length > 0 && scoreInfo.total >= getStopThreshold(gameMode);
 
       if (crossedStopLine) {
         setPendingGoStop(playerKey);
@@ -993,7 +1014,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       const capturedSnapshot: Partial<Record<PlayerKey, CapturedSummary>> = { [playerKey]: nextCaptured };
       advanceTurn(playerKey, newHandAfter.length, { [playerKey]: newHandAfter }, capturedSnapshot);
     },
-    [gameResult, pendingGoStop, getHand, getCaptured, floorCards, remainingDeck, advanceTurn]
+    [gameResult, pendingGoStop, getHand, getCaptured, floorCards, remainingDeck, advanceTurn, gameMode, turnOrder]
   );
 
   // 고/스톱 결정 처리 (사용자 버튼 클릭 또는 AI 자동 결정)
@@ -1035,6 +1056,13 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     if (hand.length === 0) return;
 
     const t = setTimeout(() => {
+      // 흔들기: 같은 월 패 3장을 들고 있는데 아직 선언하지 않았다면 자동으로 선언한다.
+      groupByMonth(hand).forEach((cards, month) => {
+        if (cards.length >= 3 && !shakenMonths[currentTurn].has(month)) {
+          declareShake(currentTurn, month);
+        }
+      });
+
       const captured = currentTurn === 'opp1' ? opponentCaptured : opponent2Captured;
       const { bestRecommendation } = evaluateHand(hand, floorCards, captured, userCaptured, gameMode, 'standard', [], null);
       applyPlay(currentTurn, bestRecommendation.card);
@@ -1097,7 +1125,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       ];
       userCapturedNext = EMPTY_CAPTURED;
       opponentCapturedNext = EMPTY_CAPTURED;
-      logNext = '시나리오 로드: [바닥 3장 뻑 먹기 찬스] 6월 3장이 바닥에 겹쳐있습니다. 쓸어담으면 피 뺏기까지 발동합니다.';
+      logNext = '시나리오 로드: [바닥 3장 쓸어담기 찬스] 6월 3장이 바닥에 겹쳐있습니다. 쓸어담으면 피 뺏기 보너스까지 발동합니다.';
     }
 
     // 시나리오에서 이미 쓰인 카드를 제외한 나머지로 상대 손패·남은 덱을 채워, 카드가 중복되거나
@@ -1133,7 +1161,12 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     userCaptured.gwang.length + userCaptured.yeol.length + userCaptured.tti.length + userCaptured.pi.length;
 
   const isUserTurn = currentTurn === 'user' && !pendingGoStop && !gameResult;
-  const cardsDisabled = autoMode || !isUserTurn || !!pendingCapture;
+  const cardsDisabled = autoMode || !isUserTurn;
+
+  // 흔들기 가능 여부: 지금 내 차례이고, 아직 선언 안 한 "같은 월 3장"을 들고 있으면 알려준다.
+  const userShakeableMonth = isUserTurn && !autoMode
+    ? Array.from(groupByMonth(userHand).entries()).find(([month, cards]) => cards.length >= 3 && !shakenMonths.user.has(month))
+    : undefined;
 
   // 먹은 패가 늘거나 손패가 줄바꿈되는 등 실제 내용 높이가 화면에 고정된 표시 높이를 넘어서는 경우를
   // 대비한 안전장치 — 넘칠 때만 손패/핵심 승부처 글자를 자동으로 한 단계 줄인다(스크롤 대신).
@@ -1188,6 +1221,13 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             훈수패
           </span>
         </div>
+
+        {/* 뻑/따닥/쪽/싹쓸이/흔들기 알림 배너 — 몇 초 뒤 자동으로 사라진다 */}
+        {eventBanner && (
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1.5 rounded-full bg-[#A9791C] text-white text-[11px] font-bold shadow-lg whitespace-nowrap pointer-events-none">
+            {eventBanner}
+          </div>
+        )}
 
         {/* Top status strip: 사이트 상단 메뉴(경험치)를 게임 화면 안으로 옮겨와 왼쪽에 두고,
             이유 보기 / 설정 / 전체화면 버튼은 오른쪽에 둔다. (훈수패 요약·차례 텍스트는 좁은 화면에서
@@ -1382,7 +1422,17 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
 
           <div className="flex items-center justify-between text-[10px] text-[#A5C7B5]">
             <span className="font-bold text-[#E5DFCE]">내 손패 ({userHand.length}장)</span>
-            <span>획득 광{userCaptured.gwang.length}·열{userCaptured.yeol.length}·띠{userCaptured.tti.length}·피{userCaptured.pi.length}</span>
+            {userShakeableMonth ? (
+              <button
+                type="button"
+                onClick={() => declareShake('user', userShakeableMonth[0])}
+                className="shrink-0 px-2 py-0.5 rounded-full bg-[#A9791C] hover:bg-[#8F6516] text-white text-[10px] font-bold cursor-pointer animate-pulse"
+              >
+                🌀 {userShakeableMonth[0]}월 흔들기 선언 (같은 월 3장!)
+              </button>
+            ) : (
+              <span>획득 광{userCaptured.gwang.length}·열{userCaptured.yeol.length}·띠{userCaptured.tti.length}·피{userCaptured.pi.length}</span>
+            )}
           </div>
           <div className="flex flex-wrap items-center justify-center gap-1">
             {userHand.map(card => {
@@ -1432,29 +1482,12 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         opponentVisible={showOpponentCards}
       />
 
-      {/* 바닥에 같은 월 패가 정확히 2장 있을 때, 내 차례라면 둘 중 하나를 직접 고르는 팝업 */}
-      {pendingCapture && (
-        <CaptureChoiceModal
-          playedCard={pendingCapture.card}
-          options={pendingCapture.options}
-          onChoose={chosen => {
-            playClick();
-            const pc = pendingCapture;
-            setPendingCapture(null);
-            if (pc.stage === 'hand') {
-              applyPlay(pc.playerKey, pc.card, chosen);
-            } else {
-              applyPlay(pc.playerKey, pc.card, pc.forcedHandChoice, chosen);
-            }
-          }}
-        />
-      )}
-
-      {/* 고/스톱 선택 모달 (내 차례에서 7점 이상 달성 시) */}
+      {/* 고/스톱 선택 모달 (내 차례에서 기준 점수 이상 달성 시) */}
       {pendingGoStop === 'user' && pendingScore && (
         <GoStopModal
           score={pendingScore}
           goCount={goCounts.user}
+          threshold={getStopThreshold(gameMode)}
           onGo={() => resolveGoStop('user', 'go')}
           onStop={() => resolveGoStop('user', 'stop')}
           coreReason={bestRecommendation.primaryReason}
