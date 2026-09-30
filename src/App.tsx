@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, BoardPost, AuthUser, QuizQuestion } from './types/hwatu';
 import {
   loadAuthUser,
@@ -13,6 +13,8 @@ import {
   LEVEL_REQUIREMENTS,
   INITIAL_USER_PROFILE,
 } from './utils/storage';
+import { getNextLevelQuestConditions } from './utils/quests';
+import { playSuccess } from './utils/sound';
 import { Navigation, TabKey } from './components/Navigation';
 import { PracticeTab } from './components/PracticeTab';
 import { RulesTab } from './components/RulesTab';
@@ -69,6 +71,36 @@ export default function App() {
       }));
     }
   }, [authUser]);
+
+  // 승급 퀘스트 체크리스트(경기 횟수/퀴즈/이유보기/게시판/출석) 중 하나라도 새로 달성되면,
+  // 지금 어느 화면에 있든 즉시 축하 팝업을 띄운다. "이 레벨에서는 조건 없음(패스)"인 항목은
+  // 사용자가 실제로 뭔가를 달성한 게 아니므로 제외한다. 앱을 처음 켰을 때 이미 달성돼 있던
+  // 조건은(과거에 이미 이뤘던 것이므로) 팝업을 띄우지 않도록, 첫 실행 시에는 기준값만 기록한다.
+  const prevQuestDoneRef = useRef<Record<string, boolean> | null>(null);
+  const [questCelebration, setQuestCelebration] = useState<string[] | null>(null);
+  useEffect(() => {
+    const active = getNextLevelQuestConditions(userProfile).filter(c => c.required > 0);
+    const currentMap: Record<string, boolean> = {};
+    active.forEach(c => { currentMap[c.key] = c.done; });
+
+    if (prevQuestDoneRef.current) {
+      const newlyAchieved = active
+        .filter(c => prevQuestDoneRef.current![c.key] === false && c.done)
+        .map(c => c.label);
+      if (newlyAchieved.length > 0) {
+        setQuestCelebration(newlyAchieved);
+        playSuccess();
+      }
+    }
+    prevQuestDoneRef.current = currentMap;
+  }, [userProfile]);
+
+  // 축하 팝업은 몇 초 뒤 자동으로 닫는다 (수동으로 닫을 수도 있음).
+  useEffect(() => {
+    if (!questCelebration) return;
+    const timer = window.setTimeout(() => setQuestCelebration(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [questCelebration]);
 
   // Login / Logout handlers
   const handleLogin = (user: AuthUser) => {
@@ -206,6 +238,38 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#FAF6EC] text-[#222222] flex flex-col font-sans selection:bg-[#A9791C]/20 selection:text-[#A9791C] relative">
+      {/* 퀘스트 달성 축하 팝업 — 연습 화면의 전체화면 모드(z-[200])보다도 위에 떠야 하므로 z를 더 높게 둔다.
+          지금 어느 탭에 있든(연습/퀴즈/게시판 등) 승급 조건을 새로 달성하는 즉시 뜬다. */}
+      {questCelebration && (
+        <div
+          className="fixed inset-0 z-[500] bg-black/55 flex items-center justify-center p-4"
+          onClick={() => setQuestCelebration(null)}
+        >
+          <div
+            className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-3"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="text-4xl animate-bounce">🎉</div>
+            <div className="text-lg font-black text-[#1F1F1F]">퀘스트 달성!</div>
+            <div className="space-y-1">
+              {questCelebration.map((label, i) => (
+                <div key={i} className="text-sm font-bold text-[#A9791C]">
+                  ✅ {label}
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-[#7A7466]">프로필 탭에서 승급 조건 달성 현황을 확인해보세요.</p>
+            <button
+              type="button"
+              onClick={() => setQuestCelebration(null)}
+              className="w-full py-2.5 rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white text-sm font-bold cursor-pointer"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Navigation — 연습(게임) 화면에서는 메뉴를 게임 화면 안으로 옮기고 상단 바는 숨긴다 */}
       <Navigation
         currentTab={currentTab}
