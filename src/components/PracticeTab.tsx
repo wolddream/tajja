@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { HwatuCard, GameMode, RulePreset } from '../types/hwatu';
 import { HWATU_DECK, shuffleDeck } from '../utils/hwatuData';
 import { evaluateHand } from '../utils/engine';
+import { calculateScore, STOP_THRESHOLD, ScoreBreakdown } from '../utils/scoring';
 import { CardView } from './CardView';
 import { ReasonModal } from './ReasonModal';
 import { playCardSnap, playCapture, playClick } from '../utils/sound';
@@ -11,20 +12,147 @@ interface PracticeTabProps {
   onIncrementReasonCount: () => void;
 }
 
-// 상대/내 정보 배지 (실제 게임 클라이언트의 아바타 카드 느낌)
-const PlayerBadge: React.FC<{ label: string; sub: string; colorClass: string; align?: 'left' | 'right' }> = ({
-  label,
-  sub,
-  colorClass,
-  align = 'left',
-}) => (
-  <div className={`flex items-center gap-2 bg-black/35 border border-white/15 rounded-xl px-2.5 py-1.5 shrink-0 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}>
-    <div className={`w-8 h-8 rounded-full ${colorClass} flex items-center justify-center text-xs font-black text-white shrink-0 shadow-sm`}>
-      {label.slice(0, 1)}
+type PlayerKey = 'user' | 'opp1' | 'opp2';
+
+interface CapturedSummary {
+  gwang: HwatuCard[];
+  yeol: HwatuCard[];
+  tti: HwatuCard[];
+  pi: HwatuCard[];
+}
+
+const EMPTY_CAPTURED: CapturedSummary = { gwang: [], yeol: [], tti: [], pi: [] };
+
+const PLAYER_LABEL: Record<PlayerKey, string> = { user: '나', opp1: '상대1', opp2: '상대2' };
+
+// 상대/내 정보 배지 (실제 게임 클라이언트의 아바타 카드 느낌). 상대1/상대2는 색상과 아바타 글자를 다르게 표시해 확실히 구분한다.
+const PlayerBadge: React.FC<{
+  label: string;
+  sub: string;
+  avatarText: string;
+  colorClass: string;
+  align?: 'left' | 'right';
+  active?: boolean;
+}> = ({ label, sub, avatarText, colorClass, align = 'left', active = false }) => (
+  <div
+    className={`flex items-center gap-2 bg-black/35 border rounded-xl px-2.5 py-1.5 shrink-0 transition-colors ${
+      align === 'right' ? 'flex-row-reverse text-right' : ''
+    } ${active ? 'border-[#F3D999] ring-2 ring-[#F3D999]/70 shadow-[0_0_10px_rgba(243,217,153,0.5)]' : 'border-white/15'}`}
+  >
+    <div className={`w-8 h-8 rounded-full ${colorClass} flex items-center justify-center text-xs font-black text-white shrink-0 shadow-sm relative`}>
+      {avatarText}
+      {active && (
+        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#F3D999] animate-ping" />
+      )}
     </div>
     <div className="leading-tight">
-      <div className="text-[11px] font-bold text-[#F4EEDC] whitespace-nowrap">{label}</div>
+      <div className="text-[11px] font-bold text-[#F4EEDC] whitespace-nowrap flex items-center gap-1">
+        {label}
+        {active && <span className="text-[9px] font-bold text-[#F3D999]">● 차례</span>}
+      </div>
       <div className="text-[9.5px] text-[#A5C7B5] whitespace-nowrap">{sub}</div>
+    </div>
+  </div>
+);
+
+// 고/스톱 선택 모달 (사용자 차례에서 7점 이상 달성 시 표시)
+const GoStopModal: React.FC<{
+  score: ScoreBreakdown;
+  goCount: number;
+  onGo: () => void;
+  onStop: () => void;
+}> = ({ score, goCount, onGo, onStop }) => (
+  <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4">
+    <div className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-sm w-full p-5 text-center space-y-3">
+      <div className="text-xs font-bold text-[#A9791C]">🎉 {STOP_THRESHOLD}점 달성!</div>
+      <div className="text-2xl font-black text-[#222]">현재 {score.total}점{goCount > 0 ? ` (${goCount}고 진행 중)` : ''}</div>
+      <p className="text-xs text-[#555] leading-relaxed">
+        여기서 <b>스톱</b>하면 지금까지 점수를 그대로 획득합니다.
+        <br />
+        <b>고</b>를 외치면 계속 진행해 더 큰 점수를 노릴 수 있지만, 상대가 먼저 점수를 낼 위험도 커집니다.
+      </p>
+      <div className="flex items-center gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onStop}
+          className="flex-1 py-2.5 rounded-lg bg-[#2B3F5C] hover:bg-[#1E2E44] text-white text-sm font-bold cursor-pointer"
+        >
+          🛑 스톱 (종료)
+        </button>
+        <button
+          type="button"
+          onClick={onGo}
+          className="flex-1 py-2.5 rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white text-sm font-bold cursor-pointer"
+        >
+          🔥 고! (계속)
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+interface GameResult {
+  winner: PlayerKey | 'draw';
+  scores: Record<PlayerKey, ScoreBreakdown>;
+  multiplier: number;
+  finalScore: number;
+  badges: string[];
+}
+
+// 게임 종료 결과 모달
+const GameResultModal: React.FC<{
+  result: GameResult;
+  activePlayers: PlayerKey[];
+  onRestart: () => void;
+}> = ({ result, activePlayers, onRestart }) => (
+  <div className="fixed inset-0 z-[300] bg-black/70 flex items-center justify-center p-4">
+    <div className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-3">
+      <div className="text-center">
+        <div className="text-xs font-bold text-[#A9791C] mb-1">게임 종료</div>
+        <div className="text-2xl font-black text-[#222]">
+          {result.winner === 'draw' ? '무승부 (유찰)' : `${PLAYER_LABEL[result.winner]} 승리!`}
+        </div>
+        {result.winner !== 'draw' && (
+          <div className="text-sm text-[#555] mt-1">
+            {result.scores[result.winner].total}점 × {result.multiplier}배 ={' '}
+            <b className="text-[#A9791C] text-lg">{result.finalScore}점</b>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        {activePlayers.map(key => (
+          <div
+            key={key}
+            className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-xs ${
+              key === result.winner ? 'bg-[#A9791C]/15 border border-[#A9791C] font-bold' : 'bg-white border border-[#E5DFCE]'
+            }`}
+          >
+            <span>{PLAYER_LABEL[key]}</span>
+            <span className="tabular-nums">
+              광{result.scores[key].gwangScore} 열{result.scores[key].yeolScore} 띠{result.scores[key].ttiScore} 피{result.scores[key].piScore} = {result.scores[key].total}점
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {result.badges.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 justify-center">
+          {result.badges.map((b, i) => (
+            <span key={i} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#9C3131]/15 text-[#9C3131] border border-[#9C3131]/30">
+              {b}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onRestart}
+        className="w-full py-2.5 rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white text-sm font-bold cursor-pointer"
+      >
+        🔄 새 게임 시작
+      </button>
     </div>
   </div>
 );
@@ -66,20 +194,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [opponentHand2, setOpponentHand2] = useState<HwatuCard[]>([]);
   const [remainingDeck, setRemainingDeck] = useState<HwatuCard[]>([]);
 
-  // Captured cards
-  const [userCaptured, setUserCaptured] = useState<{
-    gwang: HwatuCard[];
-    yeol: HwatuCard[];
-    tti: HwatuCard[];
-    pi: HwatuCard[];
-  }>({ gwang: [], yeol: [], tti: [], pi: [] });
-
-  const [opponentCaptured, setOpponentCaptured] = useState<{
-    gwang: HwatuCard[];
-    yeol: HwatuCard[];
-    tti: HwatuCard[];
-    pi: HwatuCard[];
-  }>({ gwang: [], yeol: [], tti: [], pi: [] });
+  // Captured cards (플레이어별로 실제로 쌓인 패 — 턴제 진행에 사용)
+  const [userCaptured, setUserCaptured] = useState<CapturedSummary>(EMPTY_CAPTURED);
+  const [opponentCaptured, setOpponentCaptured] = useState<CapturedSummary>(EMPTY_CAPTURED);
+  const [opponent2Captured, setOpponent2Captured] = useState<CapturedSummary>(EMPTY_CAPTURED);
 
   // Play animation / action feedback log
   const [actionLog, setActionLog] = useState<string>('원하는 패를 누르면 실제 한 수를 두고 전황을 확인할 수 있습니다.');
@@ -91,10 +209,40 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   // Reason Modal
   const [isReasonModalOpen, setIsReasonModalOpen] = useState<boolean>(false);
 
+  // ── 턴제 진행 상태 ──────────────────────────────────────────────
+  const turnOrder: PlayerKey[] = useMemo(
+    () => (gameMode === 'matgo' ? ['user', 'opp1'] : ['user', 'opp1', 'opp2']),
+    [gameMode]
+  );
+  const [currentTurn, setCurrentTurn] = useState<PlayerKey>('user');
+  const [goCounts, setGoCounts] = useState<Record<PlayerKey, number>>({ user: 0, opp1: 0, opp2: 0 });
+  const [pendingGoStop, setPendingGoStop] = useState<PlayerKey | null>(null);
+  const [pendingScore, setPendingScore] = useState<ScoreBreakdown | null>(null);
+  const [gameResult, setGameResult] = useState<GameResult | null>(null);
+
+  const getHand = useCallback(
+    (key: PlayerKey) => (key === 'user' ? userHand : key === 'opp1' ? opponentHand : opponentHand2),
+    [userHand, opponentHand, opponentHand2]
+  );
+  const getCaptured = useCallback(
+    (key: PlayerKey) => (key === 'user' ? userCaptured : key === 'opp1' ? opponentCaptured : opponent2Captured),
+    [userCaptured, opponentCaptured, opponent2Captured]
+  );
+  const setHandFor = (key: PlayerKey) => (key === 'user' ? setUserHand : key === 'opp1' ? setOpponentHand : setOpponentHand2);
+  const setCapturedFor = (key: PlayerKey) => (key === 'user' ? setUserCaptured : key === 'opp1' ? setOpponentCaptured : setOpponent2Captured);
+
+  const resetTurnState = () => {
+    setCurrentTurn('user');
+    setGoCounts({ user: 0, opp1: 0, opp2: 0 });
+    setPendingGoStop(null);
+    setPendingScore(null);
+    setGameResult(null);
+  };
+
   // Function to deal a fresh situation
   const generateNewSituation = useCallback((mode: GameMode = gameMode) => {
     const shuffled = shuffleDeck(HWATU_DECK);
-    
+
     // Matgo (2-player): Hand 10, Opponent 10, Floor 8
     // 3-player Gostop: Hand 7, Opponent1 7, Opponent2 7, Floor 6
     if (mode === 'matgo') {
@@ -103,30 +251,15 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       const floor = shuffled.slice(20, 28);
       const deck = shuffled.slice(28);
 
-      // Pre-seed some realistic captured cards to make tactical choices deep
-      const seedOppGwang = deck.find(c => c.type === 'gwang');
-      const seedOppGodori = deck.find(c => c.subType === 'godori');
-      const seedOppPi = deck.filter(c => c.type === 'pi').slice(0, 6);
-
       setUserHand(uHand);
       setOpponentHand(oHand);
       setOpponentHand2([]);
       setFloorCards(floor);
       setRemainingDeck(deck);
 
-      setUserCaptured({
-        gwang: [],
-        yeol: [],
-        tti: [],
-        pi: deck.filter(c => c.type === 'pi').slice(6, 10),
-      });
-
-      setOpponentCaptured({
-        gwang: seedOppGwang ? [seedOppGwang] : [],
-        yeol: seedOppGodori ? [seedOppGodori] : [],
-        tti: [],
-        pi: seedOppPi,
-      });
+      setUserCaptured(EMPTY_CAPTURED);
+      setOpponentCaptured(EMPTY_CAPTURED);
+      setOpponent2Captured(EMPTY_CAPTURED);
     } else {
       const uHand = shuffled.slice(0, 7);
       const oHand1 = shuffled.slice(7, 14);
@@ -140,21 +273,24 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       setFloorCards(floor);
       setRemainingDeck(deck);
 
-      setUserCaptured({ gwang: [], yeol: [], tti: [], pi: [] });
-      setOpponentCaptured({ gwang: [], yeol: [], tti: [], pi: [] });
+      setUserCaptured(EMPTY_CAPTURED);
+      setOpponentCaptured(EMPTY_CAPTURED);
+      setOpponent2Captured(EMPTY_CAPTURED);
     }
 
     setLastDeckCard(null);
     setSelectedCardId(null);
-    setActionLog('새로운 패 상황이 생성되었습니다. 추천 패와 근거를 확인하세요.');
+    setActionLog('새로운 대국이 시작되었습니다. 내 차례부터 순서대로 진행됩니다.');
+    resetTurnState();
   }, [gameMode]);
 
   // Initial deal
   useEffect(() => {
     generateNewSituation(gameMode);
-  }, [gameMode, generateNewSituation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameMode]);
 
-  // Run AI Recommendation Engine
+  // Run AI Recommendation Engine (내 차례 훈수용)
   // 상대패 "보이기"가 켜져 있을 때만 실제 상대 손패를 엔진에 넘긴다 (AI도 같은 정보를 보고 판단).
   const visibleOpponentHands = useMemo(
     () => (showOpponentCards ? [opponentHand, opponentHand2] : []),
@@ -201,82 +337,232 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     onIncrementReasonCount();
   };
 
-  // Handle Card Play (Interactive Simulator)
-  const handlePlayCard = (card: HwatuCard) => {
-    playCardSnap();
-    onIncrementGameCount(); // Increments practice / game count for quest!
+  // ── 게임 종료 판정 ──────────────────────────────────────────────
+  const endGame = useCallback(
+    (winnerKey: PlayerKey | null, finalHands: Record<PlayerKey, HwatuCard[]>, finalCaptured: Record<PlayerKey, CapturedSummary>) => {
+      const scores: Record<PlayerKey, ScoreBreakdown> = {
+        user: calculateScore(finalCaptured.user),
+        opp1: calculateScore(finalCaptured.opp1),
+        opp2: calculateScore(finalCaptured.opp2),
+      };
 
-    // Check match with floor
-    const matches = floorCards.filter(f => f.month === card.month);
-    let newFloor = floorCards.filter(f => f.month !== card.month);
-    let capturedThisTurn: HwatuCard[] = [];
+      let winner: PlayerKey | 'draw' = 'draw';
+      let multiplier = 1;
 
-    if (matches.length > 0) {
-      // Normal or multi match
-      capturedThisTurn = [card, ...matches];
-      playCapture();
-    } else {
-      // Laid down on floor
-      newFloor = [...newFloor, card];
-    }
-
-    // Flip top card from deck
-    let flippedDeckCard: HwatuCard | null = null;
-    if (remainingDeck.length > 0) {
-      flippedDeckCard = remainingDeck[0];
-      setRemainingDeck(prev => prev.slice(1));
-      setLastDeckCard(flippedDeckCard);
-
-      // Check if deck card matches anything on floor
-      const deckMatches = newFloor.filter(f => f.month === flippedDeckCard!.month);
-      if (deckMatches.length > 0) {
-        capturedThisTurn = [...capturedThisTurn, flippedDeckCard, ...deckMatches];
-        newFloor = newFloor.filter(f => f.month !== flippedDeckCard!.month);
-        setTimeout(() => playCapture(), 120);
+      if (winnerKey) {
+        winner = winnerKey;
+        multiplier = 1 + goCounts[winnerKey];
       } else {
-        newFloor = [...newFloor, flippedDeckCard];
+        const candidates = turnOrder.filter(k => scores[k].total >= STOP_THRESHOLD);
+        if (candidates.length > 0) {
+          candidates.sort((a, b) => scores[b].total - scores[a].total);
+          winner = candidates[0];
+          multiplier = 1 + goCounts[candidates[0]];
+        }
       }
-    }
 
-    // Update player's captured cards
-    if (capturedThisTurn.length > 0) {
-      setUserCaptured(prev => {
-        const next = { ...prev };
-        capturedThisTurn.forEach(c => {
-          if (c.type === 'gwang') next.gwang.push(c);
-          else if (c.type === 'yeol') next.yeol.push(c);
-          else if (c.type === 'tti') next.tti.push(c);
-          else next.pi.push(c);
+      const finalScore = winner !== 'draw' ? scores[winner].total * multiplier : 0;
+
+      const badges: string[] = [];
+      if (winner !== 'draw') {
+        turnOrder.forEach(k => {
+          if (k === winner) return;
+          const cap = finalCaptured[k];
+          const piCount = cap.pi.reduce((acc, c) => acc + (c.type === 'ssangpi' ? 2 : 1), 0);
+          const totalCaptured = cap.gwang.length + cap.yeol.length + cap.tti.length + cap.pi.length;
+          if (totalCaptured === 0) {
+            badges.push(`${PLAYER_LABEL[k]} 멍텅구리박`);
+          } else {
+            if (cap.gwang.length === 0) badges.push(`${PLAYER_LABEL[k]} 광박`);
+            if (piCount < 5) badges.push(`${PLAYER_LABEL[k]} 피박`);
+          }
         });
-        return next;
+      }
+
+      setActionLog(
+        winner === 'draw'
+          ? '아무도 7점을 달성하지 못한 채 패가 모두 소진되어 무승부(유찰)로 종료되었습니다.'
+          : `${PLAYER_LABEL[winner]}이(가) ${finalScore}점으로 게임을 승리했습니다!`
+      );
+      setGameResult({ winner, scores, multiplier, finalScore, badges });
+      setPendingGoStop(null);
+      setPendingScore(null);
+      void finalHands;
+    },
+    [goCounts, turnOrder]
+  );
+
+  // 다음 차례로 넘긴다. justPlayed 플레이어의 방금 낸 후 손패 장수를 overrideHandLen으로 넘기면
+  // (state 갱신이 아직 반영되기 전이라도) 정확한 장수로 판정할 수 있다.
+  const advanceTurn = useCallback(
+    (justPlayed: PlayerKey, overrideHandLen?: number, snapshotHands?: Partial<Record<PlayerKey, HwatuCard[]>>, snapshotCaptured?: Partial<Record<PlayerKey, CapturedSummary>>) => {
+      const handsLen: Record<PlayerKey, number> = {
+        user: (snapshotHands?.user ?? userHand).length,
+        opp1: (snapshotHands?.opp1 ?? opponentHand).length,
+        opp2: (snapshotHands?.opp2 ?? opponentHand2).length,
+      };
+      if (overrideHandLen !== undefined) handsLen[justPlayed] = overrideHandLen;
+
+      const activeOrder = turnOrder.filter(k => handsLen[k] > 0);
+      if (activeOrder.length === 0) {
+        const finalCaptured: Record<PlayerKey, CapturedSummary> = {
+          user: snapshotCaptured?.user ?? userCaptured,
+          opp1: snapshotCaptured?.opp1 ?? opponentCaptured,
+          opp2: snapshotCaptured?.opp2 ?? opponent2Captured,
+        };
+        endGame(null, { user: [], opp1: [], opp2: [] }, finalCaptured);
+        return;
+      }
+
+      const currentIdx = turnOrder.indexOf(justPlayed);
+      let next: PlayerKey | null = null;
+      for (let i = 1; i <= turnOrder.length; i++) {
+        const candidate = turnOrder[(currentIdx + i) % turnOrder.length];
+        if (handsLen[candidate] > 0) {
+          next = candidate;
+          break;
+        }
+      }
+      setCurrentTurn(next ?? justPlayed);
+    },
+    [turnOrder, userHand, opponentHand, opponentHand2, userCaptured, opponentCaptured, opponent2Captured, endGame]
+  );
+
+  // ── 한 수 두기 (사용자 / AI 공통) ────────────────────────────────
+  const applyPlay = useCallback(
+    (playerKey: PlayerKey, card: HwatuCard) => {
+      if (gameResult || pendingGoStop) return;
+
+      playCardSnap();
+      if (playerKey === 'user') onIncrementGameCount();
+
+      const currentHand = getHand(playerKey);
+      const matches = floorCards.filter(f => f.month === card.month);
+      let newFloor = floorCards.filter(f => f.month !== card.month);
+      let capturedThisTurn: HwatuCard[] = [];
+
+      if (matches.length > 0) {
+        capturedThisTurn = [card, ...matches];
+        playCapture();
+      } else {
+        newFloor = [...newFloor, card];
+      }
+
+      let flippedDeckCard: HwatuCard | null = null;
+      let newDeck = remainingDeck;
+      if (remainingDeck.length > 0) {
+        flippedDeckCard = remainingDeck[0];
+        newDeck = remainingDeck.slice(1);
+
+        const deckMatches = newFloor.filter(f => f.month === flippedDeckCard!.month);
+        if (deckMatches.length > 0) {
+          capturedThisTurn = [...capturedThisTurn, flippedDeckCard, ...deckMatches];
+          newFloor = newFloor.filter(f => f.month !== flippedDeckCard!.month);
+          setTimeout(() => playCapture(), 120);
+        } else {
+          newFloor = [...newFloor, flippedDeckCard];
+        }
+      }
+
+      const prevCaptured = getCaptured(playerKey);
+      const nextCaptured: CapturedSummary = {
+        gwang: [...prevCaptured.gwang],
+        yeol: [...prevCaptured.yeol],
+        tti: [...prevCaptured.tti],
+        pi: [...prevCaptured.pi],
+      };
+      capturedThisTurn.forEach(c => {
+        if (c.type === 'gwang') nextCaptured.gwang.push(c);
+        else if (c.type === 'yeol') nextCaptured.yeol.push(c);
+        else if (c.type === 'tti') nextCaptured.tti.push(c);
+        else nextCaptured.pi.push(c);
       });
-    }
 
-    // Remove played card from hand
-    setUserHand(prev => prev.filter(c => c.id !== card.id));
-    setSelectedCardId(null);
-    setFloorCards(newFloor);
+      const newHandAfter = currentHand.filter(c => c.id !== card.id);
 
-    // Build tactical narration
-    const isBest = card.id === bestRecommendation.card.id;
-    const matchNote = matches.length > 0
-      ? `바닥의 ${card.month}월(${matches.map(m => m.name).join(', ')})을 먹었습니다!`
-      : `바닥에 일치하는 월이 없어 ${card.month}월을 깔았습니다.`;
-    const deckNote = flippedDeckCard
-      ? ` 뒤집은 패: [${flippedDeckCard.name}]`
-      : '';
-    const ratingNote = isBest
-      ? '★ 훈수패 1순위 추천수를 두었습니다!'
-      : `대안 수를 두었습니다 (추천 1위: ${bestRecommendation.card.name})`;
+      // commit state
+      setCapturedFor(playerKey)(nextCaptured);
+      setHandFor(playerKey)(newHandAfter);
+      setFloorCards(newFloor);
+      setRemainingDeck(newDeck);
+      setLastDeckCard(flippedDeckCard);
+      if (playerKey === 'user') setSelectedCardId(null);
 
-    setActionLog(`${matchNote}${deckNote} - ${ratingNote}`);
-  };
+      const matchNote = matches.length > 0
+        ? `${PLAYER_LABEL[playerKey]}: 바닥의 ${card.month}월(${matches.map(m => m.name).join(', ')})을 먹었습니다!`
+        : `${PLAYER_LABEL[playerKey]}: 바닥에 일치하는 월이 없어 ${card.month}월을 깔았습니다.`;
+      const deckNote = flippedDeckCard ? ` 뒤집은 패: [${flippedDeckCard.name}]` : '';
+      setActionLog(`${matchNote}${deckNote}`);
 
-  // Preset situations for deliberate practice
+      const scoreInfo = calculateScore(nextCaptured);
+      const crossedStopLine = capturedThisTurn.length > 0 && scoreInfo.total >= STOP_THRESHOLD;
+
+      if (crossedStopLine) {
+        setPendingGoStop(playerKey);
+        setPendingScore(scoreInfo);
+        return;
+      }
+
+      const capturedSnapshot: Partial<Record<PlayerKey, CapturedSummary>> = { [playerKey]: nextCaptured };
+      advanceTurn(playerKey, newHandAfter.length, { [playerKey]: newHandAfter }, capturedSnapshot);
+    },
+    [gameResult, pendingGoStop, getHand, getCaptured, floorCards, remainingDeck, advanceTurn, onIncrementGameCount]
+  );
+
+  // 고/스톱 결정 처리 (사용자 버튼 클릭 또는 AI 자동 결정)
+  const resolveGoStop = useCallback(
+    (playerKey: PlayerKey, choice: 'go' | 'stop') => {
+      if (choice === 'stop') {
+        const finalCaptured: Record<PlayerKey, CapturedSummary> = {
+          user: userCaptured,
+          opp1: opponentCaptured,
+          opp2: opponent2Captured,
+        };
+        endGame(playerKey, { user: userHand, opp1: opponentHand, opp2: opponentHand2 }, finalCaptured);
+        return;
+      }
+      setGoCounts(prev => ({ ...prev, [playerKey]: prev[playerKey] + 1 }));
+      setPendingGoStop(null);
+      setPendingScore(null);
+      advanceTurn(playerKey);
+    },
+    [endGame, userCaptured, opponentCaptured, opponent2Captured, userHand, opponentHand, opponentHand2, advanceTurn]
+  );
+
+  // AI(상대1/상대2)의 고/스톱 자동 결정: 처음 한 번은 "고"를 외치고, 두 번째부터는 안전하게 "스톱"한다.
+  useEffect(() => {
+    if (!pendingGoStop || pendingGoStop === 'user' || gameResult) return;
+    const count = goCounts[pendingGoStop];
+    const choice: 'go' | 'stop' = count < 1 ? 'go' : 'stop';
+    const t = setTimeout(() => resolveGoStop(pendingGoStop, choice), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingGoStop]);
+
+  // AI(상대1/상대2) 턴 자동 진행: 훈수 엔진을 그대로 재사용해 상대 시점에서 최적수를 계산한다.
+  useEffect(() => {
+    if (gameResult || pendingGoStop) return;
+    if (currentTurn === 'user') return;
+
+    const hand = currentTurn === 'opp1' ? opponentHand : opponentHand2;
+    if (hand.length === 0) return;
+
+    const t = setTimeout(() => {
+      const captured = currentTurn === 'opp1' ? opponentCaptured : opponent2Captured;
+      const { bestRecommendation } = evaluateHand(hand, floorCards, captured, userCaptured, gameMode, rulePreset, [], null);
+      applyPlay(currentTurn, bestRecommendation.card);
+    }, 750);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTurn, gameResult, pendingGoStop, opponentHand, opponentHand2, floorCards]);
+
+  // Preset situations for deliberate practice (교육용 스냅샷 — 턴제 상태도 함께 초기화)
   const loadScenario = (type: 'godori' | 'hongdan' | 'puck' | 'safe') => {
     playClick();
+    resetTurnState();
+    setOpponent2Captured(EMPTY_CAPTURED);
+
     if (type === 'godori') {
-      // Opponent has 2 birds, floor has 8th month bird
       const m8bird = HWATU_DECK.find(c => c.id === 'm8_godori')!;
       const m3gwang = HWATU_DECK.find(c => c.id === 'm3_gwang')!;
       const m8floor = HWATU_DECK.find(c => c.id === 'm8_pi1')!;
@@ -292,7 +578,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         tti: [],
         pi: [HWATU_DECK.find(c => c.id === 'm6_pi1')!, HWATU_DECK.find(c => c.id === 'm9_pi1')!]
       });
-      setUserCaptured({ gwang: [], yeol: [], tti: [], pi: [] });
+      setUserCaptured(EMPTY_CAPTURED);
       setActionLog('시나리오 로드: [상대 고도리 위기] 상대가 새 2장을 확보했습니다. 8월 기러기 차단이 시급합니다.');
     } else if (type === 'hongdan') {
       const m1hong = HWATU_DECK.find(c => c.id === 'm1_hongdan')!;
@@ -317,6 +603,8 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         HWATU_DECK.find(c => c.id === 'm6_pi2')!,
         HWATU_DECK.find(c => c.id === 'm1_pi1')!,
       ]);
+      setUserCaptured(EMPTY_CAPTURED);
+      setOpponentCaptured(EMPTY_CAPTURED);
       setActionLog('시나리오 로드: [바닥 3장 뻑 먹기 찬스] 6월 3장이 바닥에 겹쳐있습니다. 쓸어담으면 피 뺏기까지 발동합니다.');
     } else {
       generateNewSituation(gameMode);
@@ -331,6 +619,9 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     opponentCaptured.gwang.length + opponentCaptured.yeol.length + opponentCaptured.tti.length + opponentCaptured.pi.length;
   const userCapturedTotal =
     userCaptured.gwang.length + userCaptured.yeol.length + userCaptured.tti.length + userCaptured.pi.length;
+
+  const isUserTurn = currentTurn === 'user' && !pendingGoStop && !gameResult;
+  const cardsDisabled = autoMode || !isUserTurn;
 
   return (
     <div className={isFullscreen ? 'fixed inset-0 z-[200] bg-[#0F1712] p-2 sm:p-3 overflow-y-auto space-y-3' : 'space-y-5 pb-10'}>
@@ -478,7 +769,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             }}
             className="px-4 py-1.5 text-xs font-bold rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white shadow-xs transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
           >
-            <span>🔄 패 랜덤 변경</span>
+            <span>🔄 새 대국 시작</span>
           </button>
 
           {/* 전체화면 전환 */}
@@ -527,22 +818,26 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       {/* Main Playing Table Arena — 실제 게임 클라이언트 구도(코너 아바타 + 대칭 바닥패) 참고, 한 화면에 다 들어오도록 컴팩트 레이아웃 */}
       <div
         className="bg-[#2D4536] border-4 border-[#3D2817] rounded-2xl shadow-xl text-white relative overflow-hidden flex flex-col"
-        style={{ maxHeight: isFullscreen ? 'calc(100vh - 24px)' : 'min(78vh, 720px)', height: isFullscreen ? 'calc(100vh - 24px)' : undefined }}
+        style={{ maxHeight: isFullscreen ? 'calc(100vh - 24px)' : 'min(82vh, 720px)', height: isFullscreen ? 'calc(100vh - 24px)' : undefined }}
       >
         {/* Subtle Felt Texture Vignette */}
         <div className="absolute inset-0 bg-radial from-transparent via-black/10 to-black/35 pointer-events-none" />
 
-        {/* Top status strip: 훈수패 요약 (자세한 근거는 모달) */}
-        <div className="relative z-10 shrink-0 flex items-center justify-between gap-2 px-3.5 py-2 bg-black/30 border-b border-white/10 text-[11px]">
+        {/* Top status strip: 훈수패 요약 + 현재 차례 (자세한 근거는 모달) */}
+        <div className="relative z-10 shrink-0 flex items-center justify-between gap-2 px-3.5 py-1.5 bg-black/30 border-b border-white/10 text-[11px]">
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-bold text-[#F4EEDC] shrink-0">훈수패 추천</span>
             <span className="text-[#7A7466] shrink-0">·</span>
-            <span className="font-bold text-[#F3D999] shrink-0 truncate max-w-[40vw]">
+            <span className="font-bold text-[#F3D999] shrink-0 truncate max-w-[32vw]">
               {bestRecommendation.card.name}
             </span>
             <span className="text-white/40 shrink-0">|</span>
             <span className="shrink-0">
               승률 <b className="text-white tabular-nums">{bestRecommendation.winRate}%</b>
+            </span>
+            <span className="text-white/40 shrink-0">|</span>
+            <span className={`shrink-0 font-bold ${isUserTurn ? 'text-[#F3D999]' : 'text-white/70'}`}>
+              {gameResult ? '게임 종료' : pendingGoStop ? `${PLAYER_LABEL[pendingGoStop]} 고/스톱 결정 중…` : `${PLAYER_LABEL[currentTurn]} 차례`}
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -565,14 +860,16 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           </div>
         </div>
 
-        {/* Opponent Area — 코너 아바타 배지 구도 */}
-        <div className="relative z-10 shrink-0 px-3.5 pt-2.5 space-y-1.5">
+        {/* Opponent Area — 코너 아바타 배지 구도 (상대1/상대2 색상·글자로 확실히 구분) */}
+        <div className="relative z-10 shrink-0 px-3.5 pt-2 space-y-1">
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-col items-start gap-1">
               <PlayerBadge
-                label={gameMode === 'matgo' ? '상대' : '상대1'}
+                label="상대1"
                 sub={showOpponentCards ? '패 공개' : '비공개'}
+                avatarText="1"
                 colorClass="bg-[#9C3131]"
+                active={currentTurn === 'opp1' && !gameResult}
               />
               {opponentCapturedTotal > 0 && (
                 <div className="flex flex-wrap items-center gap-0.5 p-1 bg-black/20 rounded-lg max-w-[46vw] max-h-9 overflow-hidden">
@@ -585,7 +882,21 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
 
             {gameMode === 'gostop3' ? (
               <div className="flex flex-col items-end gap-1">
-                <PlayerBadge label="상대2" sub={showOpponentCards ? '패 공개' : '비공개'} colorClass="bg-[#5A6E72]" align="right" />
+                <PlayerBadge
+                  label="상대2"
+                  sub={showOpponentCards ? '패 공개' : '비공개'}
+                  avatarText="2"
+                  colorClass="bg-[#2B5F8A]"
+                  align="right"
+                  active={currentTurn === 'opp2' && !gameResult}
+                />
+                {(opponent2Captured.gwang.length + opponent2Captured.yeol.length + opponent2Captured.tti.length + opponent2Captured.pi.length) > 0 && (
+                  <div className="flex flex-wrap items-center justify-end gap-0.5 p-1 bg-black/20 rounded-lg max-w-[46vw] max-h-9 overflow-hidden">
+                    {[...opponent2Captured.gwang, ...opponent2Captured.yeol, ...opponent2Captured.tti, ...opponent2Captured.pi].map((card, idx) => (
+                      <CardView key={`opp2-cap-${card.id}-${idx}`} card={card} size="xs" disabled={true} hideInfo={true} />
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-end gap-0.5 bg-black/25 border border-white/10 rounded-xl px-2.5 py-1.5 text-right shrink-0">
@@ -595,71 +906,81 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-center gap-1">
             {opponentHand.length > 0 ? (
               opponentHand.map((card, idx) => (
                 <CardView key={card.id + idx} card={card} size="xs" isHidden={!showOpponentCards} disabled={true} />
               ))
             ) : (
-              <div className="text-[11px] text-white/60 py-1">패를 모두 소진했습니다.</div>
+              <div className="text-[10.5px] text-white/60 py-0.5">패를 모두 소진했습니다.</div>
             )}
           </div>
 
-          {gameMode === 'gostop3' && opponentHand2.length > 0 && (
-            <div className="flex flex-wrap items-center justify-center gap-1.5">
-              {opponentHand2.map((card, idx) => (
-                <CardView key={card.id + idx} card={card} size="xs" isHidden={!showOpponentCards} disabled={true} />
-              ))}
+          {gameMode === 'gostop3' && (
+            <div className="flex flex-wrap items-center justify-center gap-1">
+              {opponentHand2.length > 0 ? (
+                opponentHand2.map((card, idx) => (
+                  <CardView key={card.id + idx} card={card} size="xs" isHidden={!showOpponentCards} disabled={true} />
+                ))
+              ) : (
+                <div className="text-[10.5px] text-white/60 py-0.5">패를 모두 소진했습니다.</div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Center: Deck + Floor — 덱을 가운데 두고 바닥패를 위/아래로 감싸는 대칭 구도 */}
-        <div className="relative z-10 my-2 mx-3.5 px-3 py-2 bg-black/25 rounded-xl border border-white/10 overflow-y-auto max-h-[42vh] flex-1 flex flex-col items-center justify-center gap-2">
-          <div className="w-full flex items-center justify-between text-[10.5px] text-[#A5C7B5]">
+        {/* Center: Deck + Floor — 덱을 가운데 두고 바닥패를 위/아래로 감싸는 대칭 구도 (컴팩트 xs 카드로 스크롤 없이 표시) */}
+        <div className="relative z-10 my-1.5 mx-3.5 px-3 py-1.5 bg-black/25 rounded-xl border border-white/10 flex-1 flex flex-col items-center justify-center gap-1">
+          <div className="w-full flex items-center justify-between text-[10px] text-[#A5C7B5]">
             <span className="font-bold text-[#FAF6EC]">바닥패 ({floorCards.length}장)</span>
             {lastDeckCard && (
-              <span className="text-[#F3D999]">방금 뒤집힘: <b className="underline">{lastDeckCard.name}</b></span>
+              <span className="text-[#F3D999] truncate max-w-[55%]">뒤집힘: <b className="underline">{lastDeckCard.name}</b></span>
             )}
           </div>
 
           {/* 위쪽 바닥패 줄 */}
-          <div className="flex flex-wrap items-center justify-center gap-1.5 min-h-[3rem]">
+          <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem]">
             {floorTop.map(card => (
-              <CardView key={card.id} card={card} size="sm" disabled={true} />
+              <CardView key={card.id} card={card} size="xs" disabled={true} />
             ))}
           </div>
 
           {/* 가운데 덱 */}
-          <div className="shrink-0 flex flex-col items-center">
+          <div className="shrink-0 flex items-center gap-1.5">
             {showDeckTopCard && remainingDeck.length > 0 ? (
-              <CardView card={remainingDeck[0]} size="sm" disabled={true} />
+              <CardView card={remainingDeck[0]} size="xs" disabled={true} />
             ) : (
-              <div className="w-13 h-20 bg-[#9C3131] border border-[#FAF6EC]/30 rounded-md shadow flex items-center justify-center text-white text-[10px] font-bold">
-                덱 {remainingDeck.length}장
+              <div className="w-8 h-12 bg-[#9C3131] border border-[#FAF6EC]/30 rounded-sm shadow flex items-center justify-center text-white text-[8px] font-bold text-center leading-tight px-0.5">
+                덱{remainingDeck.length}
               </div>
             )}
-            <span className="text-[9px] text-white/60 mt-1 text-center leading-tight">
+            <span className="text-[9px] text-white/60 leading-tight">
               {showDeckTopCard && remainingDeck.length > 0 ? '다음 뒤집힐 패' : '뒤집기 대기'}
             </span>
           </div>
 
           {/* 아래쪽 바닥패 줄 */}
-          <div className="flex flex-wrap items-center justify-center gap-1.5 min-h-[3rem]">
+          <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem]">
             {floorBottom.length > 0 ? (
               floorBottom.map(card => (
-                <CardView key={card.id} card={card} size="sm" disabled={true} />
+                <CardView key={card.id} card={card} size="xs" disabled={true} />
               ))
             ) : floorTop.length === 0 ? (
-              <div className="text-[11px] text-white/60 py-2">바닥이 비었습니다 (싹쓸이 상황!)</div>
+              <div className="text-[10.5px] text-white/60 py-1">바닥이 비었습니다 (싹쓸이 상황!)</div>
             ) : null}
           </div>
         </div>
 
         {/* My Area — 코너 아바타 배지 구도 (상대와 대칭) */}
-        <div className="relative z-10 shrink-0 px-3.5 pb-1 space-y-1.5">
+        <div className="relative z-10 shrink-0 px-3.5 pb-1 space-y-1">
           <div className="flex items-end justify-between gap-2">
-            <PlayerBadge label="나" sub={`획득 ${userCapturedTotal}장`} colorClass="bg-[#2B3F5C]" />
+            <PlayerBadge
+              label="나"
+              sub={`획득 ${userCapturedTotal}장 · 점수 ${calculateScore(userCaptured).total}`}
+              avatarText="나"
+              colorClass="bg-[#2B3F5C]"
+              active={currentTurn === 'user' && !gameResult}
+            />
             {userCapturedTotal > 0 && (
               <div className="flex flex-wrap items-center justify-end gap-0.5 p-1 bg-black/20 rounded-lg max-w-[60vw] max-h-9 overflow-hidden">
                 {[...userCaptured.gwang, ...userCaptured.yeol, ...userCaptured.tti, ...userCaptured.pi].map((card, idx) => (
@@ -669,11 +990,11 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             )}
           </div>
 
-          <div className="flex items-center justify-between text-[10.5px] text-[#A5C7B5]">
+          <div className="flex items-center justify-between text-[10px] text-[#A5C7B5]">
             <span className="font-bold text-[#E5DFCE]">내 손패 ({userHand.length}장)</span>
             <span>획득 광{userCaptured.gwang.length}·열{userCaptured.yeol.length}·띠{userCaptured.tti.length}·피{userCaptured.pi.length}</span>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
             {userHand.map(card => {
               const isRecommended = card.id === bestRecommendation.card.id;
               const isSecond = secondRecommendation && card.id === secondRecommendation.card.id;
@@ -687,10 +1008,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                   isRecommended={isRecommended}
                   recommendationRank={isRecommended ? 1 : (isSecond ? 2 : undefined)}
                   isSelected={isSelected}
-                  disabled={autoMode}
+                  disabled={cardsDisabled}
                   onClick={() => {
                     setSelectedCardId(card.id);
-                    handlePlayCard(card);
+                    applyPlay('user', card);
                   }}
                 />
               );
@@ -699,12 +1020,12 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         </div>
 
         {/* Bottom bar: action log + 자동 진행 */}
-        <div className="relative z-10 shrink-0 flex items-center justify-between gap-2 px-3.5 py-2 mt-2 bg-black/30 border-t border-white/10 text-[10.5px] text-[#FAF6EC]">
+        <div className="relative z-10 shrink-0 flex items-center justify-between gap-2 px-3.5 py-1.5 mt-1 bg-black/30 border-t border-white/10 text-[10.5px] text-[#FAF6EC]">
           <span className="truncate flex-1">{actionLog}</span>
-          {autoMode && userHand.length > 0 && (
+          {autoMode && isUserTurn && userHand.length > 0 && (
             <button
               type="button"
-              onClick={() => handlePlayCard(bestRecommendation.card)}
+              onClick={() => applyPlay('user', bestRecommendation.card)}
               className="shrink-0 px-3 py-1.5 rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white text-[11px] font-bold cursor-pointer whitespace-nowrap animate-pulse"
             >
               🤖 AI 추천대로 진행 →
@@ -742,6 +1063,25 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         secondRecommendation={secondRecommendation}
         opponentVisible={showOpponentCards}
       />
+
+      {/* 고/스톱 선택 모달 (내 차례에서 7점 이상 달성 시) */}
+      {pendingGoStop === 'user' && pendingScore && (
+        <GoStopModal
+          score={pendingScore}
+          goCount={goCounts.user}
+          onGo={() => resolveGoStop('user', 'go')}
+          onStop={() => resolveGoStop('user', 'stop')}
+        />
+      )}
+
+      {/* 게임 종료 결과 모달 */}
+      {gameResult && (
+        <GameResultModal
+          result={gameResult}
+          activePlayers={turnOrder}
+          onRestart={() => generateNewSituation(gameMode)}
+        />
+      )}
     </div>
   );
 };
