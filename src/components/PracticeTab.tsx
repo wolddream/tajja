@@ -22,6 +22,8 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   // 바닥패는 실제 고스톱에서도 항상 공개 정보라 항상 보여준다.
   // 대신 실전에서 미리 알 수 없는 "뒤집기 패(덱 맨 위 패)"를 보이기/안보기로 전환한다.
   const [showDeckTopCard, setShowDeckTopCard] = useState<boolean>(false);
+  // 수동(직접 카드 클릭) / 자동(AI 추천패를 버튼으로 대신 진행) 모드
+  const [autoMode, setAutoMode] = useState<boolean>(false);
 
   // Board State
   const [userHand, setUserHand] = useState<HwatuCard[]>([]);
@@ -401,6 +403,28 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             </span>
           )}
 
+          {/* 수동 / 자동 모드 전환 */}
+          <div className="flex items-center gap-1 p-1 bg-[#FAF6EC] border border-[#E5DFCE] rounded-lg text-xs" title="자동 모드에서는 카드를 직접 못 누르고, 'AI 추천대로 진행' 버튼으로만 다음 수를 둘 수 있습니다.">
+            <button
+              type="button"
+              onClick={() => { if (autoMode) { playClick(); setAutoMode(false); } }}
+              className={`px-2.5 py-1 font-semibold rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                !autoMode ? 'bg-[#2B3F5C] text-white shadow-xs' : 'text-[#666] hover:text-[#111]'
+              }`}
+            >
+              🖐️ 수동
+            </button>
+            <button
+              type="button"
+              onClick={() => { if (!autoMode) { playClick(); setAutoMode(true); } }}
+              className={`px-2.5 py-1 font-semibold rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                autoMode ? 'bg-[#A9791C] text-white shadow-xs' : 'text-[#666] hover:text-[#111]'
+              }`}
+            >
+              🤖 자동
+            </button>
+          </div>
+
           {/* "패 랜덤 변경" button */}
           <button
             type="button"
@@ -441,72 +465,85 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         </button>
       </div>
 
-      {/* Main Playing Table Arena */}
-      <div className="bg-[#2D4536] border-4 border-[#3D2817] rounded-2xl p-5 shadow-xl text-white space-y-6 relative overflow-hidden">
+      {/* Main Playing Table Arena — 한 화면에 다 들어오도록 고정 높이 + 컴팩트 레이아웃 */}
+      <div
+        className="bg-[#2D4536] border-4 border-[#3D2817] rounded-2xl shadow-xl text-white relative overflow-hidden flex flex-col"
+        style={{ maxHeight: 'min(78vh, 720px)' }}
+      >
         {/* Subtle Felt Texture Vignette */}
         <div className="absolute inset-0 bg-radial from-transparent via-black/10 to-black/35 pointer-events-none" />
 
-        {/* Top: Opponent Area */}
-        <div className="relative z-10 space-y-2">
-          <div className="flex items-center justify-between text-xs text-[#E5DFCE]">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-[#F4EEDC]">
-                {gameMode === 'matgo' ? '상대 타짜 (2인)' : '상대 1 & 2 (3인)'}
-              </span>
-              <span>·</span>
-              <span>
-                {showOpponentCards ? '공개 모드 (AI 훈수에 실제 반영됨)' : '비공개 모드 (실전 불완전정보)'}
-              </span>
-            </div>
-            <div className="text-[11px] text-[#A5C7B5]">
-              먹은 패: 광 {opponentCaptured.gwang.length}장 · 열 {opponentCaptured.yeol.length}장 · 띠 {opponentCaptured.tti.length}장 · 피 {opponentCaptured.pi.length}장
-            </div>
+        {/* Top status strip: 훈수패 요약 (자세한 근거는 모달) */}
+        <div className="relative z-10 shrink-0 flex items-center justify-between gap-2 px-3.5 py-2 bg-black/30 border-b border-white/10 text-[11px]">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-bold text-[#F4EEDC] shrink-0">훈수패 추천</span>
+            <span className="text-[#7A7466] shrink-0">·</span>
+            <span className="font-bold text-[#F3D999] shrink-0 truncate max-w-[40vw]">
+              {bestRecommendation.card.name}
+            </span>
+            <span className="text-white/40 shrink-0">|</span>
+            <span className="shrink-0">
+              승률 <b className="text-white tabular-nums">{bestRecommendation.winRate}%</b>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenReason}
+            className="shrink-0 px-2.5 py-1 rounded-md bg-[#2B3F5C] hover:bg-[#1E2E44] text-white text-[10.5px] font-bold cursor-pointer whitespace-nowrap"
+          >
+            🔍 이유 보기
+          </button>
+        </div>
+
+        {/* Opponent Area */}
+        <div className="relative z-10 shrink-0 px-3.5 pt-2.5 space-y-1.5">
+          <div className="flex items-center justify-between text-[10.5px] text-[#A5C7B5]">
+            <span className="font-bold text-[#E5DFCE]">
+              {gameMode === 'matgo' ? '상대 (2인)' : '상대 1 · 2 (3인)'}
+              {' · '}
+              {showOpponentCards ? '공개' : '비공개'}
+            </span>
+            <span>
+              먹은 패 광{opponentCaptured.gwang.length}·열{opponentCaptured.yeol.length}·띠{opponentCaptured.tti.length}·피{opponentCaptured.pi.length}
+            </span>
           </div>
 
-          {/* Opponent Captured Pile (먹은 패 실제 카드) */}
           {(opponentCaptured.gwang.length + opponentCaptured.yeol.length + opponentCaptured.tti.length + opponentCaptured.pi.length) > 0 && (
-            <div className="flex flex-wrap items-center gap-1 p-2 bg-black/15 rounded-lg">
+            <div className="flex flex-wrap items-center gap-1 p-1.5 bg-black/15 rounded-lg max-h-11 overflow-hidden">
               {[...opponentCaptured.gwang, ...opponentCaptured.yeol, ...opponentCaptured.tti, ...opponentCaptured.pi].map((card, idx) => (
                 <CardView key={`opp-cap-${card.id}-${idx}`} card={card} size="xs" disabled={true} hideInfo={true} />
               ))}
             </div>
           )}
 
-          {/* Opponent Card Stack */}
-          <div className="flex flex-wrap items-center gap-2 min-h-16">
+          <div className="flex flex-wrap items-center gap-1.5">
             {opponentHand.length > 0 ? (
               opponentHand.map((card, idx) => (
-                <CardView
-                  key={card.id + idx}
-                  card={card}
-                  size="sm"
-                  isHidden={!showOpponentCards}
-                  disabled={true}
-                />
+                <CardView key={card.id + idx} card={card} size="xs" isHidden={!showOpponentCards} disabled={true} />
               ))
             ) : (
-              <div className="text-xs text-white/60 py-3">패를 모두 소진했습니다.</div>
+              <div className="text-[11px] text-white/60 py-1">패를 모두 소진했습니다.</div>
             )}
           </div>
+
+          {gameMode === 'gostop3' && opponentHand2.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {opponentHand2.map((card, idx) => (
+                <CardView key={card.id + idx} card={card} size="xs" isHidden={!showOpponentCards} disabled={true} />
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Center: The Floor (바닥패) & Deck Pile */}
-        <div className="relative z-10 py-3 px-4 bg-black/25 rounded-xl border border-white/10 space-y-2">
-          <div className="flex items-center justify-between text-xs text-[#E5DFCE]">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-[#FAF6EC]">바닥에 깔린 패 (바닥패)</span>
-              <span>({floorCards.length}장)</span>
-            </div>
+        {/* Center: Deck + Floor — 남는 공간을 채우되, 넘치면 이 영역만 스크롤(전체 화면 스크롤 방지) */}
+        <div className="relative z-10 my-2 mx-3.5 px-3 py-2 bg-black/25 rounded-xl border border-white/10 overflow-y-auto max-h-[38vh] flex flex-col">
+          <div className="flex items-center justify-between text-[10.5px] text-[#A5C7B5] mb-1.5">
+            <span className="font-bold text-[#FAF6EC]">바닥패 ({floorCards.length}장)</span>
             {lastDeckCard && (
-              <div className="text-[11px] text-[#F3D999] flex items-center gap-1.5">
-                <span>방금 덱에서 뒤집힌 패:</span>
-                <span className="font-bold underline">{lastDeckCard.name}</span>
-              </div>
+              <span className="text-[#F3D999]">방금 뒤집힘: <b className="underline">{lastDeckCard.name}</b></span>
             )}
           </div>
-
-          <div className="flex items-center gap-4 overflow-x-auto py-1">
-            {/* Draw Deck Stack Visual */}
+          <div className="flex-1 flex items-center gap-3">
             <div className="shrink-0 flex flex-col items-center">
               {showDeckTopCard && remainingDeck.length > 0 ? (
                 <CardView card={remainingDeck[0]} size="sm" disabled={true} />
@@ -515,182 +552,97 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                   덱 {remainingDeck.length}장
                 </div>
               )}
-              <span className="text-[10px] text-white/60 mt-1">
-                {showDeckTopCard && remainingDeck.length > 0 ? `다음 뒤집힐 패 (${remainingDeck.length}장 남음)` : '뒤집기 대기'}
+              <span className="text-[9px] text-white/60 mt-1 text-center leading-tight">
+                {showDeckTopCard && remainingDeck.length > 0 ? '다음 뒤집힐 패' : '뒤집기 대기'}
               </span>
             </div>
-
-            {/* Floor Cards Grid (바닥패는 실제 고스톱처럼 항상 공개) */}
-            <div className="flex-1 flex flex-wrap items-center gap-2 min-h-20">
+            <div className="flex-1 flex flex-wrap items-center gap-1.5">
               {floorCards.length > 0 ? (
                 floorCards.map(card => (
                   <CardView key={card.id} card={card} size="sm" disabled={true} />
                 ))
               ) : (
-                <div className="text-xs text-white/60 py-3">바닥이 비었습니다 (싹쓸이 상황!)</div>
+                <div className="text-[11px] text-white/60 py-2">바닥이 비었습니다 (싹쓸이 상황!)</div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Bottom: Player's Hand (내 손패) */}
-        <div className="relative z-10 space-y-2">
-          <div className="flex items-center justify-between text-xs text-[#E5DFCE]">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-[#F4EEDC]">내 손패 ({userHand.length}장)</span>
-              <span className="text-[11px] text-[#F3D999]">
-                * 카드를 클릭하면 실제로 한 수를 두어 전황을 시뮬레이션합니다.
-              </span>
-            </div>
-            <div className="text-[11px] text-[#A5C7B5]">
-              내 획득: 광 {userCaptured.gwang.length}장 · 열 {userCaptured.yeol.length}장 · 띠 {userCaptured.tti.length}장 · 피 {userCaptured.pi.length}장
-            </div>
+        {/* My Captured Pile */}
+        {(userCaptured.gwang.length + userCaptured.yeol.length + userCaptured.tti.length + userCaptured.pi.length) > 0 && (
+          <div className="relative z-10 shrink-0 mx-3.5 flex flex-wrap items-center gap-1 p-1.5 bg-black/15 rounded-lg max-h-11 overflow-hidden">
+            {[...userCaptured.gwang, ...userCaptured.yeol, ...userCaptured.tti, ...userCaptured.pi].map((card, idx) => (
+              <CardView key={`my-cap-${card.id}-${idx}`} card={card} size="xs" disabled={true} hideInfo={true} />
+            ))}
           </div>
+        )}
 
-          {/* My Captured Pile (내 먹은 패 실제 카드) */}
-          {(userCaptured.gwang.length + userCaptured.yeol.length + userCaptured.tti.length + userCaptured.pi.length) > 0 && (
-            <div className="flex flex-wrap items-center gap-1 p-2 bg-black/15 rounded-lg">
-              {[...userCaptured.gwang, ...userCaptured.yeol, ...userCaptured.tti, ...userCaptured.pi].map((card, idx) => (
-                <CardView key={`my-cap-${card.id}-${idx}`} card={card} size="xs" disabled={true} hideInfo={true} />
-              ))}
-            </div>
-          )}
-
-          {/* Cards in Hand */}
-          <div className="flex flex-wrap items-center gap-2.5 pt-1">
-            {userHand.map((card, idx) => {
+        {/* My Hand */}
+        <div className="relative z-10 shrink-0 px-3.5 pt-1.5">
+          <div className="flex items-center justify-between text-[10.5px] text-[#A5C7B5] mb-1">
+            <span className="font-bold text-[#E5DFCE]">내 손패 ({userHand.length}장)</span>
+            <span>획득 광{userCaptured.gwang.length}·열{userCaptured.yeol.length}·띠{userCaptured.tti.length}·피{userCaptured.pi.length}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {userHand.map(card => {
               const isRecommended = card.id === bestRecommendation.card.id;
               const isSecond = secondRecommendation && card.id === secondRecommendation.card.id;
               const isSelected = selectedCardId === card.id;
 
               return (
-                <div key={card.id} className="relative group">
-                  <CardView
-                    card={card}
-                    size="md"
-                    isRecommended={isRecommended}
-                    recommendationRank={isRecommended ? 1 : (isSecond ? 2 : undefined)}
-                    isSelected={isSelected}
-                    onClick={() => {
-                      setSelectedCardId(card.id);
-                      handlePlayCard(card);
-                    }}
-                  />
-                </div>
+                <CardView
+                  key={card.id}
+                  card={card}
+                  size="sm"
+                  isRecommended={isRecommended}
+                  recommendationRank={isRecommended ? 1 : (isSecond ? 2 : undefined)}
+                  isSelected={isSelected}
+                  disabled={autoMode}
+                  onClick={() => {
+                    setSelectedCardId(card.id);
+                    handlePlayCard(card);
+                  }}
+                />
               );
             })}
           </div>
         </div>
 
-        {/* Bottom Action Feedback Narration */}
-        <div className="relative z-10 px-3.5 py-2 rounded-lg bg-black/30 border border-white/10 text-xs text-[#FAF6EC] flex items-center justify-between">
-          <span className="truncate">{actionLog}</span>
-          <span className="text-[11px] text-[#A5C7B5] shrink-0 ml-2">
-            누적 대국 연습 반영 중
-          </span>
+        {/* Bottom bar: action log + 자동 진행 */}
+        <div className="relative z-10 shrink-0 flex items-center justify-between gap-2 px-3.5 py-2 mt-2 bg-black/30 border-t border-white/10 text-[10.5px] text-[#FAF6EC]">
+          <span className="truncate flex-1">{actionLog}</span>
+          {autoMode && userHand.length > 0 && (
+            <button
+              type="button"
+              onClick={() => handlePlayCard(bestRecommendation.card)}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white text-[11px] font-bold cursor-pointer whitespace-nowrap animate-pulse"
+            >
+              🤖 AI 추천대로 진행 →
+            </button>
+          )}
         </div>
       </div>
 
-      {/* AI Recommendation Outcome Panel */}
-      <div className="bg-white border border-[#DDD4C0] rounded-xl p-5 shadow-xs space-y-4">
-        {/* Panel Header */}
-        <div className="flex flex-wrap items-center justify-between border-b border-[#E5DFCE] pb-3 gap-2">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#A9791C]" />
-            <h2 className="font-bold text-base text-[#1F1F1F]">
-              훈수패 수읽기 결과 (실시간 추천 분석)
-            </h2>
-            <span className="text-xs text-[#7A7466]">
-              몬테카를로 기대 승률 분석
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleOpenReason}
-            className="px-4 py-1.5 text-xs font-bold rounded-lg bg-[#2B3F5C] hover:bg-[#1E2E44] text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-          >
-            <span>🔍 이유 자세히 보기</span>
-            <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded text-white">퀘스트</span>
-          </button>
+      {/* 손패 전체 순위 비교 (슬림 바) */}
+      {recommendations.length > 1 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+          <span className="shrink-0 font-semibold text-[#7A7466]">순위 비교:</span>
+          {recommendations.slice(0, 4).map((rec, index) => (
+            <div
+              key={rec.card.id}
+              className={`shrink-0 px-2.5 py-1 rounded-lg border flex items-center gap-1.5 whitespace-nowrap ${
+                index === 0
+                  ? 'bg-[#FAF6EC] border-[#A9791C] font-semibold text-[#A9791C]'
+                  : 'bg-white border-[#E5DFCE] text-[#555]'
+              }`}
+            >
+              <span className="font-bold">{index + 1}위</span>
+              <span>{rec.card.name}</span>
+              <span className="font-mono tabular-nums">{rec.winRate}%</span>
+            </div>
+          ))}
         </div>
-
-        {/* Highlighted Recommendation Details */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-          {/* Col 1: Recommended Card Visual & Tag */}
-          <div className="flex items-center gap-4 p-3 bg-[#FAF6EC] rounded-xl border border-[#E5DFCE]">
-            <CardView card={bestRecommendation.card} size="md" isRecommended={true} />
-            <div className="space-y-1">
-              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#A9791C] text-white">
-                ★ 1순위 추천
-              </span>
-              <div className="font-bold text-sm text-[#1F1F1F]">
-                {bestRecommendation.card.name}
-              </div>
-              <div className="text-xs text-[#7A7466]">
-                전술: {bestRecommendation.tacticalKey}
-              </div>
-            </div>
-          </div>
-
-          {/* Col 2: Probability & Superiority Metrics */}
-          <div className="grid grid-cols-2 gap-3 p-3 bg-[#FAF6EC] rounded-xl border border-[#E5DFCE] text-center">
-            <div>
-              <div className="text-xs text-[#7A7466] mb-0.5">기대 승률</div>
-              <div className="text-2xl font-black text-[#9C3131] tabular-nums font-mono">
-                {bestRecommendation.winRate}%
-              </div>
-              <div className="text-[10px] text-[#7A7466]">가상 1,000국 시뮬</div>
-            </div>
-            <div>
-              <div className="text-xs text-[#7A7466] mb-0.5">2위 대비 우위</div>
-              <div className="text-2xl font-black text-[#3B6255] tabular-nums font-mono">
-                +{bestRecommendation.gapToSecond}%p
-              </div>
-              <div className="text-[10px] text-[#7A7466]">안전도 & 득점차</div>
-            </div>
-          </div>
-
-          {/* Col 3: Primary Tactical Rationale */}
-          <div className="p-3 bg-[#FAF6EC] rounded-xl border border-[#E5DFCE] flex flex-col justify-center">
-            <div className="text-xs font-bold text-[#A9791C] mb-1">
-              핵심 수읽기 근거
-            </div>
-            <p className="text-xs leading-relaxed text-[#2F2F2F] line-clamp-3">
-              {bestRecommendation.primaryReason}
-            </p>
-          </div>
-        </div>
-
-        {/* Ranking List of Other Cards in Hand */}
-        {recommendations.length > 1 && (
-          <div className="border-t border-[#E5DFCE] pt-3">
-            <div className="text-xs font-semibold text-[#7A7466] mb-2">
-              손패 전체 순위 및 승률 비교:
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-              {recommendations.slice(0, 4).map((rec, index) => (
-                <div
-                  key={rec.card.id}
-                  className={`p-2 rounded-lg border flex items-center justify-between ${
-                    index === 0
-                      ? 'bg-[#FAF6EC] border-[#A9791C] font-semibold text-[#A9791C]'
-                      : 'bg-white border-[#E5DFCE] text-[#555]'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 truncate">
-                    <span className="font-bold">{index + 1}위</span>
-                    <span className="truncate">{rec.card.name}</span>
-                  </div>
-                  <span className="font-mono tabular-nums text-xs ml-1 shrink-0">
-                    {rec.winRate}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Reason Detail Modal */}
       <ReasonModal

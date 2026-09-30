@@ -88,15 +88,18 @@ export const CardView: React.FC<CardViewProps> = ({
 
   return (
     <div className="relative shrink-0">
+      {/* 훈수패(AI 추천 패): 빙글빙글 도는 황금 테두리 */}
+      {isRecommended && <div className="hp-recommended-ring" />}
+
       <button
         type="button"
         onClick={onClick}
         disabled={disabled}
         className={`
-          ${sizeClasses[size]} relative flex flex-col justify-between overflow-hidden
+          ${sizeClasses[size]} relative z-[1] flex flex-col justify-between overflow-hidden
           rounded-[5px] bg-white text-left select-none transition-all duration-150
           ${isSelected ? 'ring-2 ring-[#A9791C] -translate-y-1.5 shadow-md' : 'ring-1 ring-[#1F1F1F]/15 hover:ring-[#A9791C]/60 hover:-translate-y-1 shadow-sm'}
-          ${isRecommended ? 'ring-2 ring-[#A9791C] shadow-md' : ''}
+          ${isRecommended ? 'shadow-md' : ''}
           ${disabled ? 'opacity-60 cursor-not-allowed hover:translate-y-0' : 'cursor-pointer active:scale-95'}
         `}
         title={`${card.name} (${card.plant})`}

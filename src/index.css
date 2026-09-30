@@ -1,1 +1,32 @@
 @import "tailwindcss";
+
+/* 훈수패(추천 패) 황금 테두리 회전 애니메이션 */
+@keyframes hp-gold-ring-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.hp-recommended-ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: 9px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hp-recommended-ring::before {
+  content: "";
+  position: absolute;
+  inset: -60%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    #A9791C 35deg,
+    #FFE79A 65deg,
+    #A9791C 95deg,
+    transparent 140deg,
+    transparent 360deg
+  );
+  animation: hp-gold-ring-spin 2.1s linear infinite;
+}
