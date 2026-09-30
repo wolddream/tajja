@@ -1,0 +1,8 @@
+{
+  "name": "훈수패 - 고스톱 수읽기 & 연습 학습 앱",
+  "description": "실전 가상 패 상황을 두고 최선의 수와 기대 승률, 근거를 학습하는 고스톱·맞고 연습 트레이너",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
