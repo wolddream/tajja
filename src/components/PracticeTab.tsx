@@ -55,28 +55,50 @@ const PlayerBadge: React.FC<{
   </div>
 );
 
-// 상대의 "내지 않은 패"(손패) 뒷면을 겹쳐서 보여주는 컴팩트 패더미. 상대1/상대2를 배지와 같은 색으로 칠해 구분하고,
-// 카드를 옆으로 잔뜩 늘어놓는 대신 겹쳐 쌓아 공간을 최소화한다.
-const HiddenHandStack: React.FC<{ count: number; colorClass: string; borderClass: string }> = ({ count, colorClass, borderClass }) => {
-  if (count === 0) {
+// 상대의 손패를 겹쳐서 보여주는 컴팩트 패더미. "보이기"/"안보기" 모드 모두 이 겹침 배치를 쓰고,
+// 상대1은 화면 왼쪽, 상대2는 화면 오른쪽으로 정렬해 서로 헷갈리지 않게 한다.
+// 안보기 모드일 때는 상대1/상대2 배지와 같은 색의 카드 뒷면으로, 보이기 모드일 때는 실제 카드 앞면으로 표시한다.
+const HandStack: React.FC<{
+  cards: HwatuCard[];
+  isHidden: boolean;
+  colorClass: string;
+  borderClass: string;
+  align?: 'left' | 'right';
+}> = ({ cards, isHidden, colorClass, borderClass, align = 'left' }) => {
+  if (cards.length === 0) {
     return <div className="text-[10.5px] text-white/60 py-0.5">패를 모두 소진했습니다.</div>;
   }
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex">
-        {Array.from({ length: count }).map((_, i) => (
-          <div
-            key={i}
-            className={`w-8 h-12 rounded-sm ${colorClass} border ${borderClass} shadow-sm flex items-center justify-center shrink-0`}
-            style={{ marginLeft: i === 0 ? 0 : '-23px', zIndex: i }}
-          >
-            <div className="w-3.5 h-3.5 rounded-full border border-white/40 flex items-center justify-center text-[7px] text-white/70 font-serif">
-              花
+  const countLabel = <span className="text-[10px] font-bold text-white/70 tabular-nums shrink-0">{cards.length}장</span>;
+  const stack = (
+    <div className="flex">
+      {cards.map((card, i) => (
+        <div key={card.id} className="shrink-0" style={{ marginLeft: i === 0 ? 0 : '-23px', zIndex: i }}>
+          {isHidden ? (
+            <div className={`w-8 h-12 rounded-sm ${colorClass} border ${borderClass} shadow-sm flex items-center justify-center`}>
+              <div className="w-3.5 h-3.5 rounded-full border border-white/40 flex items-center justify-center text-[7px] text-white/70 font-serif">
+                花
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-      <span className="text-[10px] font-bold text-white/70 tabular-nums shrink-0">{count}장</span>
+          ) : (
+            <CardView card={card} size="xs" disabled={true} hideInfo={true} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+  return (
+    <div className={`flex items-center gap-2 w-full ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
+      {align === 'right' ? (
+        <>
+          {countLabel}
+          {stack}
+        </>
+      ) : (
+        <>
+          {stack}
+          {countLabel}
+        </>
+      )}
     </div>
   );
 };
@@ -932,37 +954,25 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             )}
           </div>
 
-          <div className="flex items-center justify-center">
-            {showOpponentCards ? (
-              <div className="flex flex-wrap items-center justify-center gap-1">
-                {opponentHand.length > 0 ? (
-                  opponentHand.map((card, idx) => (
-                    <CardView key={card.id + idx} card={card} size="xs" disabled={true} />
-                  ))
-                ) : (
-                  <div className="text-[10.5px] text-white/60 py-0.5">패를 모두 소진했습니다.</div>
-                )}
-              </div>
-            ) : (
-              <HiddenHandStack count={opponentHand.length} colorClass="bg-[#9C3131]" borderClass="border-[#7D2626]" />
-            )}
+          <div className="flex items-center">
+            <HandStack
+              cards={opponentHand}
+              isHidden={!showOpponentCards}
+              colorClass="bg-[#9C3131]"
+              borderClass="border-[#7D2626]"
+              align="left"
+            />
           </div>
 
           {gameMode === 'gostop3' && (
-            <div className="flex items-center justify-center">
-              {showOpponentCards ? (
-                <div className="flex flex-wrap items-center justify-center gap-1">
-                  {opponentHand2.length > 0 ? (
-                    opponentHand2.map((card, idx) => (
-                      <CardView key={card.id + idx} card={card} size="xs" disabled={true} />
-                    ))
-                  ) : (
-                    <div className="text-[10.5px] text-white/60 py-0.5">패를 모두 소진했습니다.</div>
-                  )}
-                </div>
-              ) : (
-                <HiddenHandStack count={opponentHand2.length} colorClass="bg-[#2B5F8A]" borderClass="border-[#1E4A6B]" />
-              )}
+            <div className="flex items-center">
+              <HandStack
+                cards={opponentHand2}
+                isHidden={!showOpponentCards}
+                colorClass="bg-[#2B5F8A]"
+                borderClass="border-[#1E4A6B]"
+                align="right"
+              />
             </div>
           )}
         </div>
