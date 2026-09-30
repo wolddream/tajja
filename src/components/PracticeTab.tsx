@@ -430,6 +430,35 @@ const SettingsModal: React.FC<{
   </div>
 );
 
+// "핵심 승부처" 요약 칸은 좁아서 줄임 표시될 수 있어, 🔍 아이콘으로 전체 문장을 크게 볼 수 있는 팝업
+const CoreReasonModal: React.FC<{ cardName: string; winRate: number; text: string; onClose: () => void }> = ({
+  cardName,
+  winRate,
+  text,
+  onClose,
+}) => (
+  <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-3 relative"
+      onClick={e => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="닫기"
+        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/10 hover:bg-black/20 text-[#555] text-sm font-bold flex items-center justify-center cursor-pointer"
+      >
+        ✕
+      </button>
+      <div className="text-xs font-bold text-[#A9791C]">💡 핵심 승부처</div>
+      <div className="text-sm text-[#7A7466]">
+        추천 패 <b className="text-[#1F1F1F]">{cardName}</b> · 승률 <b className="text-[#9C3131]">{winRate}%</b>
+      </div>
+      <p className="text-base leading-relaxed text-[#1F1F1F]">{text}</p>
+    </div>
+  </div>
+);
+
 export const PracticeTab: React.FC<PracticeTabProps> = ({
   onIncrementGameCount,
   onIncrementReasonCount,
@@ -446,6 +475,8 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   // 게임 화면 안의 ⚙️ 아이콘으로 여는 설정 패널 (인원/시야 옵션/자동모드/시나리오 등을 모아둠)
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  // "핵심 승부처" 문구가 좁은 칸에 줄임 표시될 때, 🔍 아이콘으로 전체 내용을 크게 볼 수 있는 팝업
+  const [isCoreReasonOpen, setIsCoreReasonOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isFullscreen) return;
@@ -1038,7 +1069,14 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         <div className="relative z-10 my-1.5 mx-3.5 px-2.5 py-1.5 bg-black/25 rounded-xl border border-white/10 flex-1 flex items-stretch gap-2">
           {/* 핵심 승부처 (이유 보기 1번 항목 내용을 상시 표시) */}
           <div className="w-[34%] shrink-0 flex flex-col justify-center border-r border-white/10 pr-2">
-            <div className="text-[9.5px] font-bold text-[#F3D999] mb-0.5">💡 핵심 승부처</div>
+            <button
+              type="button"
+              onClick={() => { playClick(); setIsCoreReasonOpen(true); }}
+              className="flex items-center gap-1 mb-0.5 text-[9.5px] font-bold text-[#F3D999] cursor-pointer w-fit"
+            >
+              <span>💡 핵심 승부처</span>
+              <span aria-label="전체 내용 크게 보기" className="shrink-0">🔍</span>
+            </button>
             <div className="text-[10px] leading-snug text-white/85 line-clamp-6">
               {bestRecommendation.primaryReason}
             </div>
@@ -1104,7 +1142,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             <span className="font-bold text-[#E5DFCE]">내 손패 ({userHand.length}장)</span>
             <span>획득 광{userCaptured.gwang.length}·열{userCaptured.yeol.length}·띠{userCaptured.tti.length}·피{userCaptured.pi.length}</span>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-center gap-1">
             {userHand.map(card => {
               const isRecommended = card.id === bestRecommendation.card.id;
               const isSecond = secondRecommendation && card.id === secondRecommendation.card.id;
@@ -1114,7 +1152,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                 <CardView
                   key={card.id}
                   card={card}
-                  size="sm"
+                  size="compact"
                   isRecommended={isRecommended}
                   recommendationRank={isRecommended ? 1 : (isSecond ? 2 : undefined)}
                   isSelected={isSelected}
@@ -1197,6 +1235,16 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           onNewGame={() => { playClick(); generateNewSituation(gameMode); setIsSettingsOpen(false); }}
           onLoadScenario={type => { loadScenario(type); setIsSettingsOpen(false); }}
           onClose={() => setIsSettingsOpen(false)}
+        />
+      )}
+
+      {/* 핵심 승부처 전체 내용 팝업 */}
+      {isCoreReasonOpen && (
+        <CoreReasonModal
+          cardName={bestRecommendation.card.name}
+          winRate={bestRecommendation.winRate}
+          text={bestRecommendation.primaryReason}
+          onClose={() => setIsCoreReasonOpen(false)}
         />
       )}
     </div>

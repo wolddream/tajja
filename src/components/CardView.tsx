@@ -9,7 +9,7 @@ interface CardViewProps {
   recommendationRank?: number;
   isSelected?: boolean;
   isHidden?: boolean;
-  size?: 'xs' | 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'compact' | 'sm' | 'md' | 'lg';
   onClick?: () => void;
   badgeText?: string;
   disabled?: boolean;
@@ -39,12 +39,15 @@ export const CardView: React.FC<CardViewProps> = ({
   // Dimension maps (64:96 비율 = 실제 화투 카드에 가까운 세로비)
   const sizeClasses = {
     xs: 'w-8 h-12 rounded-sm',
+    // 내 손패용 축소 사이즈: xs보다 크게 유지해 패 종류 라벨은 그대로 보이면서 sm보다 공간을 덜 차지한다.
+    compact: 'w-10 h-16 rounded-md',
     sm: 'w-13 h-20 rounded-md',
     md: 'w-16 h-24 rounded-lg',
     lg: 'w-20 h-30 rounded-xl',
   };
   const plusBtnClasses = {
     xs: 'w-3 h-3 text-[7px] -top-1 -left-1',
+    compact: 'w-3.5 h-3.5 text-[8px] -top-1 -left-1',
     sm: 'w-4 h-4 text-[9px] -top-1.5 -left-1.5',
     md: 'w-5 h-5 text-[10px] -top-2 -left-1.5',
     lg: 'w-6 h-6 text-xs -top-2 -left-2',
