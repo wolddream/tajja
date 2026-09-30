@@ -10,6 +10,7 @@ interface BoardTabProps {
   onVote: (postId: string, choice: 'A' | 'B') => void;
   onAddComment: (postId: string, commentText: string) => void;
   onParticipateBoard: () => void;
+  onGoToRules: () => void;
 }
 
 export const BoardTab: React.FC<BoardTabProps> = ({
@@ -18,6 +19,7 @@ export const BoardTab: React.FC<BoardTabProps> = ({
   onVote,
   onAddComment,
   onParticipateBoard,
+  onGoToRules,
 }) => {
   const [isWriteModalOpen, setIsWriteModalOpen] = useState<boolean>(false);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
@@ -76,72 +78,27 @@ export const BoardTab: React.FC<BoardTabProps> = ({
 
   return (
     <div className="space-y-6 pb-10">
-      {/* 1) Fixed Top Guide Card: Hwatu Basic Rules & Scoring Formula */}
-      <div className="bg-[#FAF6EC] border-2 border-[#A9791C]/40 rounded-2xl p-5 shadow-xs relative overflow-hidden">
-        {/* Decorative corner tag */}
-        <div className="absolute top-0 right-0 bg-[#A9791C] text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl tracking-tight">
-          훈수패 화투 족보 &amp; 점수 공식 가이드
+      {/* 1) Slim Banner: 상세 룰 가이드는 전용 페이지로 이동 */}
+      <button
+        type="button"
+        onClick={onGoToRules}
+        className="w-full bg-[#FAF6EC] border-2 border-[#A9791C]/40 rounded-2xl px-5 py-3.5 flex items-center justify-between gap-3 cursor-pointer hover:border-[#A9791C] transition-colors text-left"
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="text-xl shrink-0">📜</span>
+          <span className="min-w-0">
+            <span className="block font-bold text-sm text-[#1F1F1F] truncate">
+              화투 기본 룰 &amp; 점수 채점 기준 안내
+            </span>
+            <span className="block text-[11px] text-[#7A7466] truncate">
+              패 이미지와 화투의 역사까지, 전용 가이드 페이지에서 확인하세요
+            </span>
+          </span>
         </div>
-
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xl">📜</span>
-          <h2 className="text-base font-bold text-[#1F1F1F]">
-            화투 기본 룰 &amp; 점수 채점 기준 안내 (국룰 가이드)
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          {/* 피 (Pi) */}
-          <div className="p-3 rounded-xl bg-white border border-[#DDD4C0] space-y-1">
-            <div className="font-bold text-[#8A6240] flex items-center justify-between">
-              <span>🍃 피 (10장부터 1점)</span>
-              <span className="text-[10px] font-normal text-[#7A7466]">쌍피는 2장</span>
-            </div>
-            <p className="text-[11px] text-[#444] leading-relaxed">
-              피 10장 = 1점, 이후 1장마다 +1점 추가. 맞고에서 피 7장 이하, 3인에서 5장 이하로 패배 시 <strong>피박(점수 2배)</strong> 적용!
-            </p>
-          </div>
-
-          {/* 띠 (Tti / Dan) */}
-          <div className="p-3 rounded-xl bg-white border border-[#DDD4C0] space-y-1">
-            <div className="font-bold text-[#9C3131] flex items-center justify-between">
-              <span>🔴 띠 (5장부터 1점)</span>
-              <span className="text-[10px] font-normal text-[#7A7466]">단 완성 3점</span>
-            </div>
-            <p className="text-[11px] text-[#444] leading-relaxed">
-              띠 5장 = 1점, 이후 1장마다 +1점. <strong>홍단(1,2,3월), 청단(6,9,10월), 초단(4,5,7월)</strong> 각각 3점 획득!
-            </p>
-          </div>
-
-          {/* 열끗 & 고도리 */}
-          <div className="p-3 rounded-xl bg-white border border-[#DDD4C0] space-y-1">
-            <div className="font-bold text-[#A9791C] flex items-center justify-between">
-              <span>🐦 열끗 &amp; 고도리 (5점)</span>
-              <span className="text-[10px] font-normal text-[#7A7466]">2, 4, 8월 새</span>
-            </div>
-            <p className="text-[11px] text-[#444] leading-relaxed">
-              열끗 5장 = 1점, 1장마다 +1점. <strong>고도리(2월 매화새, 4월 흑싸리새, 8월 기러기 3장)</strong> 모으면 즉시 5점!
-            </p>
-          </div>
-
-          {/* 광 (Gwang) */}
-          <div className="p-3 rounded-xl bg-white border border-[#DDD4C0] space-y-1">
-            <div className="font-bold text-[#2B3F5C] flex items-center justify-between">
-              <span>☀️ 광 (3장 3점 / 5장 15점)</span>
-              <span className="text-[10px] font-normal text-[#7A7466]">비삼광 2점</span>
-            </div>
-            <p className="text-[11px] text-[#444] leading-relaxed">
-              광 3장 = 3점 (비광 포함 삼광은 2점), 4광 = 4점, <strong>오광 = 15점</strong>. 상대 광 점수 날 때 내 광 0장이면 <strong>광박(2배)</strong>!
-            </p>
-          </div>
-        </div>
-
-        {/* Extra Rule note */}
-        <div className="mt-3 pt-2.5 border-t border-[#E5DFCE] text-[11px] text-[#7A7466] flex flex-wrap items-center justify-between gap-2">
-          <span>* 특수 룰: 바닥패와 덱패가 일치하는 뻑(피 뺏기), 흔들기(동일 월 3장 보유), 싹쓸이(바닥을 전부 비우면 피 1장 강탈)</span>
-          <span className="font-semibold text-[#A9791C]">승리 점수 기준: 맞고 7점 이상 / 3인 고스톱 3점 이상</span>
-        </div>
-      </div>
+        <span className="shrink-0 text-xs font-semibold text-[#A9791C] flex items-center gap-1">
+          룰 가이드 보기 →
+        </span>
+      </button>
 
       {/* Community Action Header */}
       <div className="flex items-center justify-between">

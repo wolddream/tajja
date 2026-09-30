@@ -3,7 +3,7 @@ import { AuthUser } from '../types/hwatu';
 import { playClick } from '../utils/sound';
 import { LEVEL_REQUIREMENTS } from '../utils/storage';
 
-export type TabKey = 'practice' | 'quiz' | 'board' | 'profile' | 'admin';
+export type TabKey = 'practice' | 'rules' | 'quiz' | 'board' | 'profile' | 'admin';
 
 interface NavigationProps {
   currentTab: TabKey;
@@ -49,6 +49,7 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   const navItems: { key: TabKey; label: string; icon: string; adminOnly?: boolean }[] = [
     { key: 'practice', label: '연습 (수읽기)', icon: '🎴' },
+    { key: 'rules', label: '화투 룰 가이드', icon: '📜' },
     { key: 'quiz', label: '오늘의 퀴즈', icon: '❓' },
     { key: 'board', label: '게시판 (토론)', icon: '💬' },
     { key: 'profile', label: '프로필 & 퀘스트', icon: '🏆' },
@@ -157,7 +158,7 @@ export const Navigation: React.FC<NavigationProps> = ({
 
       {/* Bottom Tab Navigation Bar (Mobile) */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#FAF6EC] border-t border-[#DDD4C0] px-2 py-1 shadow-lg md:hidden">
-        <div className={`max-w-md mx-auto grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} gap-1`}>
+        <div className={`max-w-md mx-auto grid ${isAdmin ? 'grid-cols-6' : 'grid-cols-5'} gap-1`}>
           {navItems.map(item => {
             const isActive = currentTab === item.key;
             return (
@@ -175,6 +176,8 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <span className="text-[10px] truncate whitespace-nowrap">
                   {item.key === 'practice'
                     ? '연습'
+                    : item.key === 'rules'
+                    ? '룰 가이드'
                     : item.key === 'quiz'
                     ? '오늘의 퀴즈'
                     : item.key === 'board'

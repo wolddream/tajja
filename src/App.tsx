@@ -15,6 +15,7 @@ import {
 } from './utils/storage';
 import { Navigation, TabKey } from './components/Navigation';
 import { PracticeTab } from './components/PracticeTab';
+import { RulesTab } from './components/RulesTab';
 import { QuizTab } from './components/QuizTab';
 import { BoardTab } from './components/BoardTab';
 import { ProfileTab } from './components/ProfileTab';
@@ -232,6 +233,8 @@ export default function App() {
           />
         )}
 
+        {currentTab === 'rules' && <RulesTab />}
+
         {currentTab === 'quiz' && (
           <QuizTab
             quizzes={quizzes}
@@ -249,6 +252,7 @@ export default function App() {
             onVote={handleVotePost}
             onAddComment={handleAddComment}
             onParticipateBoard={handleParticipateBoard}
+            onGoToRules={() => setCurrentTab('rules')}
           />
         )}
 
