@@ -55,6 +55,32 @@ const PlayerBadge: React.FC<{
   </div>
 );
 
+// 상대의 "내지 않은 패"(손패) 뒷면을 겹쳐서 보여주는 컴팩트 패더미. 상대1/상대2를 배지와 같은 색으로 칠해 구분하고,
+// 카드를 옆으로 잔뜩 늘어놓는 대신 겹쳐 쌓아 공간을 최소화한다.
+const HiddenHandStack: React.FC<{ count: number; colorClass: string; borderClass: string }> = ({ count, colorClass, borderClass }) => {
+  if (count === 0) {
+    return <div className="text-[10.5px] text-white/60 py-0.5">패를 모두 소진했습니다.</div>;
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex">
+        {Array.from({ length: count }).map((_, i) => (
+          <div
+            key={i}
+            className={`w-8 h-12 rounded-sm ${colorClass} border ${borderClass} shadow-sm flex items-center justify-center shrink-0`}
+            style={{ marginLeft: i === 0 ? 0 : '-23px', zIndex: i }}
+          >
+            <div className="w-3.5 h-3.5 rounded-full border border-white/40 flex items-center justify-center text-[7px] text-white/70 font-serif">
+              花
+            </div>
+          </div>
+        ))}
+      </div>
+      <span className="text-[10px] font-bold text-white/70 tabular-nums shrink-0">{count}장</span>
+    </div>
+  );
+};
+
 // 고/스톱 선택 모달 (사용자 차례에서 7점 이상 달성 시 표시)
 const GoStopModal: React.FC<{
   score: ScoreBreakdown;
@@ -906,24 +932,36 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-1">
-            {opponentHand.length > 0 ? (
-              opponentHand.map((card, idx) => (
-                <CardView key={card.id + idx} card={card} size="xs" isHidden={!showOpponentCards} disabled={true} />
-              ))
+          <div className="flex items-center justify-center">
+            {showOpponentCards ? (
+              <div className="flex flex-wrap items-center justify-center gap-1">
+                {opponentHand.length > 0 ? (
+                  opponentHand.map((card, idx) => (
+                    <CardView key={card.id + idx} card={card} size="xs" disabled={true} />
+                  ))
+                ) : (
+                  <div className="text-[10.5px] text-white/60 py-0.5">패를 모두 소진했습니다.</div>
+                )}
+              </div>
             ) : (
-              <div className="text-[10.5px] text-white/60 py-0.5">패를 모두 소진했습니다.</div>
+              <HiddenHandStack count={opponentHand.length} colorClass="bg-[#9C3131]" borderClass="border-[#7D2626]" />
             )}
           </div>
 
           {gameMode === 'gostop3' && (
-            <div className="flex flex-wrap items-center justify-center gap-1">
-              {opponentHand2.length > 0 ? (
-                opponentHand2.map((card, idx) => (
-                  <CardView key={card.id + idx} card={card} size="xs" isHidden={!showOpponentCards} disabled={true} />
-                ))
+            <div className="flex items-center justify-center">
+              {showOpponentCards ? (
+                <div className="flex flex-wrap items-center justify-center gap-1">
+                  {opponentHand2.length > 0 ? (
+                    opponentHand2.map((card, idx) => (
+                      <CardView key={card.id + idx} card={card} size="xs" disabled={true} />
+                    ))
+                  ) : (
+                    <div className="text-[10.5px] text-white/60 py-0.5">패를 모두 소진했습니다.</div>
+                  )}
+                </div>
               ) : (
-                <div className="text-[10.5px] text-white/60 py-0.5">패를 모두 소진했습니다.</div>
+                <HiddenHandStack count={opponentHand2.length} colorClass="bg-[#2B5F8A]" borderClass="border-[#1E4A6B]" />
               )}
             </div>
           )}
