@@ -84,7 +84,7 @@ const HandStack: React.FC<{
               </div>
             </div>
           ) : (
-            <CardView card={card} size="xs" disabled={true} hideInfo={true} />
+            <CardView card={card} size="xs" disabled={true} hideInfo={true} fullOpacity noBorder />
           )}
         </div>
       ))}
@@ -117,7 +117,7 @@ const CategoryPile: React.FC<{ cards: HwatuCard[] }> = ({ cards }) => {
     <div className="relative flex shrink-0">
       {shownCards.map((card, idx) => (
         <div key={`${card.id}-${idx}`} className="shrink-0" style={{ marginLeft: idx === 0 ? 0 : '-23px', zIndex: idx }}>
-          <CardView card={card} size="xs" disabled={true} hideInfo={true} />
+          <CardView card={card} size="xs" disabled={true} hideInfo={true} fullOpacity noBorder />
         </div>
       ))}
       {cards.length > 1 && (

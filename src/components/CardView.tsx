@@ -14,6 +14,10 @@ interface CardViewProps {
   badgeText?: string;
   disabled?: boolean;
   hideInfo?: boolean;
+  // 겹쳐 쌓는 패더미(손패/먹은 패 스택)에서 사용: 비활성 카드의 반투명 처리를 끄고(뒤 카드가 비쳐 보이지 않도록)
+  // 테두리 링도 없애 겹칠 때 생기는 흰 줄무늬를 없앤다.
+  fullOpacity?: boolean;
+  noBorder?: boolean;
 }
 
 export const CardView: React.FC<CardViewProps> = ({
@@ -27,6 +31,8 @@ export const CardView: React.FC<CardViewProps> = ({
   badgeText,
   disabled = false,
   hideInfo = false,
+  fullOpacity = false,
+  noBorder = false,
 }) => {
   const [infoOpen, setInfoOpen] = useState(false);
 
@@ -98,9 +104,9 @@ export const CardView: React.FC<CardViewProps> = ({
         className={`
           ${sizeClasses[size]} relative z-[1] flex flex-col justify-between overflow-hidden
           rounded-[5px] bg-white text-left select-none transition-all duration-150
-          ${isSelected ? 'ring-2 ring-[#A9791C] -translate-y-1.5 shadow-md' : 'ring-1 ring-[#1F1F1F]/15 hover:ring-[#A9791C]/60 hover:-translate-y-1 shadow-sm'}
+          ${isSelected ? 'ring-2 ring-[#A9791C] -translate-y-1.5 shadow-md' : noBorder ? 'shadow-sm' : 'ring-1 ring-[#1F1F1F]/15 hover:ring-[#A9791C]/60 hover:-translate-y-1 shadow-sm'}
           ${isRecommended ? 'shadow-md' : ''}
-          ${disabled ? 'opacity-60 cursor-not-allowed hover:translate-y-0' : 'cursor-pointer active:scale-95'}
+          ${disabled ? `cursor-not-allowed hover:translate-y-0 ${fullOpacity ? '' : 'opacity-60'}` : 'cursor-pointer active:scale-95'}
         `}
         title={`${card.name} (${card.plant})`}
       >
