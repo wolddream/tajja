@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { HwatuCard, GameMode } from '../types/hwatu';
 import { HWATU_DECK, shuffleDeck } from '../utils/hwatuData';
 import { evaluateHand } from '../utils/engine';
@@ -477,6 +477,8 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   // "핵심 승부처" 문구가 좁은 칸에 줄임 표시될 때, 🔍 아이콘으로 전체 내용을 크게 볼 수 있는 팝업
   const [isCoreReasonOpen, setIsCoreReasonOpen] = useState<boolean>(false);
+  // 실제 브라우저 전체화면 API 대상 (주소창 등 브라우저 UI까지 가리기 위해 사용)
+  const fullscreenRootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isFullscreen) return;
@@ -491,6 +493,36 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [isFullscreen]);
+
+  // 브라우저 자체 전체화면(주소창 등 브라우저 UI 숨김)을 지원하는 기기에서는 함께 켜고 끈다.
+  // 지원하지 않는 기기(예: iOS Safari)에서는 기존 CSS 전체화면만 동작한다.
+  const enterFullscreen = useCallback(() => {
+    playClick();
+    setIsFullscreen(true);
+    const el = fullscreenRootRef.current as (HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> }) | null;
+    const request = el?.requestFullscreen?.bind(el) ?? el?.webkitRequestFullscreen?.bind(el);
+    request?.()?.catch(() => {});
+  }, []);
+
+  const exitFullscreen = useCallback(() => {
+    playClick();
+    setIsFullscreen(false);
+    const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> };
+    if (doc.fullscreenElement) {
+      doc.exitFullscreen?.().catch(() => {});
+    } else if (doc.webkitFullscreenElement) {
+      doc.webkitExitFullscreen?.();
+    }
+  }, []);
+
+  // 사용자가 기기 뒤로가기/제스처 등으로 브라우저 전체화면만 빠져나간 경우, 앱 상태도 함께 동기화한다.
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement) setIsFullscreen(false);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
 
   // Board State
   const [userHand, setUserHand] = useState<HwatuCard[]>([]);
@@ -952,7 +984,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const cardsDisabled = autoMode || !isUserTurn;
 
   return (
-    <div className={isFullscreen ? 'fixed inset-0 z-[200] bg-[#0F1712] p-2 sm:p-3 overflow-y-auto space-y-3' : 'space-y-5 pb-10'}>
+    <div
+      ref={fullscreenRootRef}
+      className={isFullscreen ? 'fixed inset-0 z-[200] bg-[#0F1712] p-2 sm:p-3 overflow-y-auto space-y-3' : 'space-y-5 pb-10'}
+    >
       {/* Main Playing Table Arena — 실제 게임 클라이언트 구도(코너 아바타 + 대칭 바닥패) 참고, 한 화면에 다 들어오도록 컴팩트 레이아웃.
           모든 설정은 테이블 안의 ⚙️ 설정 아이콘을 눌러 여는 패널에서 관리한다. */}
       <div
@@ -987,7 +1022,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             {isFullscreen ? (
               <button
                 type="button"
-                onClick={() => { playClick(); setIsFullscreen(false); }}
+                onClick={exitFullscreen}
                 className="shrink-0 px-2.5 py-1 rounded-md bg-black/40 hover:bg-black/60 border border-white/20 text-white text-[10.5px] font-bold cursor-pointer whitespace-nowrap"
               >
                 ⤢ 전체화면 종료
@@ -995,7 +1030,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             ) : (
               <button
                 type="button"
-                onClick={() => { playClick(); setIsFullscreen(true); }}
+                onClick={enterFullscreen}
                 className="shrink-0 px-2.5 py-1 rounded-md bg-black/40 hover:bg-black/60 border border-white/20 text-white text-[10.5px] font-bold cursor-pointer whitespace-nowrap"
               >
                 ⛶ 전체화면
