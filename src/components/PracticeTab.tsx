@@ -68,10 +68,14 @@ const HandStack: React.FC<{
   if (cards.length === 0) {
     return <div className="text-[10.5px] text-white/60 py-0.5">패를 모두 소진했습니다.</div>;
   }
+  // 카드를 너무 많이 겹쳐 쌓으면 칸 밖으로 잘려 나온 카드가 반쪽만 보이는 지저분한 모습이 되므로,
+  // 보여줄 카드 수를 제한하고 정확한 장수는 옆의 숫자 라벨로만 전달한다.
+  const MAX_SHOWN = 6;
+  const shownCards = cards.slice(0, MAX_SHOWN);
   const countLabel = <span className="text-[10px] font-bold text-white/70 tabular-nums shrink-0">{cards.length}장</span>;
   const stack = (
     <div className="flex">
-      {cards.map((card, i) => (
+      {shownCards.map((card, i) => (
         <div key={card.id} className="shrink-0" style={{ marginLeft: i === 0 ? 0 : '-23px', zIndex: i }}>
           {isHidden ? (
             <div className={`w-8 h-12 rounded-sm ${colorClass} border ${borderClass} shadow-sm flex items-center justify-center`}>
@@ -106,9 +110,12 @@ const HandStack: React.FC<{
 // 한 종류(광/열끗/띠/피)의 먹은 패를 살짝 겹쳐 쌓고, 2장 이상이면 우하단에 장수 배지를 붙인다.
 const CategoryPile: React.FC<{ cards: HwatuCard[] }> = ({ cards }) => {
   if (cards.length === 0) return null;
+  // 겹쳐 쌓을 카드 수를 제한해, 칸 밖으로 반쪽만 잘려 보이는 카드가 생기지 않게 한다.
+  const MAX_SHOWN = 4;
+  const shownCards = cards.slice(0, MAX_SHOWN);
   return (
     <div className="relative flex shrink-0">
-      {cards.map((card, idx) => (
+      {shownCards.map((card, idx) => (
         <div key={`${card.id}-${idx}`} className="shrink-0" style={{ marginLeft: idx === 0 ? 0 : '-23px', zIndex: idx }}>
           <CardView card={card} size="xs" disabled={true} hideInfo={true} />
         </div>
@@ -188,14 +195,28 @@ interface GameResult {
   badges: string[];
 }
 
-// 게임 종료 결과 모달
+// 게임 종료 결과 모달. 배경을 옅게 하고 닫기 버튼을 둬서, 결과를 본 뒤 경기 판(최종 바닥패·먹은 패)을
+// 계속 확인할 수 있게 한다 — 닫아도 게임 자체는 끝난 상태로 남고, "결과 다시 보기"로 언제든 재소환 가능.
 const GameResultModal: React.FC<{
   result: GameResult;
   activePlayers: PlayerKey[];
   onRestart: () => void;
-}> = ({ result, activePlayers, onRestart }) => (
-  <div className="fixed inset-0 z-[300] bg-black/70 flex items-center justify-center p-4">
-    <div className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-3">
+  onClose: () => void;
+}> = ({ result, activePlayers, onRestart, onClose }) => (
+  <div className="fixed inset-0 z-[300] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-3 relative"
+      onClick={e => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="결과 닫고 경기 판 보기"
+        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/10 hover:bg-black/20 text-[#555] text-sm font-bold flex items-center justify-center cursor-pointer"
+      >
+        ✕
+      </button>
+
       <div className="text-center">
         <div className="text-xs font-bold text-[#A9791C] mb-1">게임 종료</div>
         <div className="text-2xl font-black text-[#222]">
@@ -235,13 +256,22 @@ const GameResultModal: React.FC<{
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={onRestart}
-        className="w-full py-2.5 rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white text-sm font-bold cursor-pointer"
-      >
-        🔄 새 게임 시작
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex-1 py-2.5 rounded-lg bg-white border border-[#DDD4C0] hover:border-[#A9791C] text-[#555] text-sm font-bold cursor-pointer"
+        >
+          경기 판 보기
+        </button>
+        <button
+          type="button"
+          onClick={onRestart}
+          className="flex-1 py-2.5 rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white text-sm font-bold cursor-pointer"
+        >
+          🔄 새 게임 시작
+        </button>
+      </div>
     </div>
   </div>
 );
@@ -308,6 +338,8 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [pendingGoStop, setPendingGoStop] = useState<PlayerKey | null>(null);
   const [pendingScore, setPendingScore] = useState<ScoreBreakdown | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
+  // 결과 모달을 닫아도 경기 판(최종 바닥패·먹은 패)은 계속 볼 수 있게, 모달 표시 여부만 따로 관리한다.
+  const [resultModalOpen, setResultModalOpen] = useState<boolean>(false);
 
   const getHand = useCallback(
     (key: PlayerKey) => (key === 'user' ? userHand : key === 'opp1' ? opponentHand : opponentHand2),
@@ -326,6 +358,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     setPendingGoStop(null);
     setPendingScore(null);
     setGameResult(null);
+    setResultModalOpen(false);
   };
 
   // Function to deal a fresh situation
@@ -474,6 +507,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           : `${PLAYER_LABEL[winner]}이(가) ${finalScore}점으로 게임을 승리했습니다!`
       );
       setGameResult({ winner, scores, multiplier, finalScore, badges });
+      setResultModalOpen(true);
       setPendingGoStop(null);
       setPendingScore(null);
       void finalHands;
@@ -1149,13 +1183,25 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         />
       )}
 
-      {/* 게임 종료 결과 모달 */}
-      {gameResult && (
+      {/* 게임 종료 결과 모달 — 닫아도 경기 판은 계속 보이며, 아래 배지로 언제든 다시 열 수 있다 */}
+      {gameResult && resultModalOpen && (
         <GameResultModal
           result={gameResult}
           activePlayers={turnOrder}
           onRestart={() => generateNewSituation(gameMode)}
+          onClose={() => setResultModalOpen(false)}
         />
+      )}
+
+      {/* 결과 모달을 닫은 뒤 경기 판을 보는 중일 때, 다시 결과를 열 수 있는 배지 */}
+      {gameResult && !resultModalOpen && (
+        <button
+          type="button"
+          onClick={() => setResultModalOpen(true)}
+          className="fixed bottom-4 right-4 z-[250] px-4 py-2.5 rounded-full bg-[#A9791C] hover:bg-[#8F6516] text-white text-xs font-bold shadow-xl cursor-pointer whitespace-nowrap"
+        >
+          🏆 {gameResult.winner === 'draw' ? '무승부' : `${PLAYER_LABEL[gameResult.winner]} 승리`} · 결과 다시 보기
+        </button>
       )}
     </div>
   );
