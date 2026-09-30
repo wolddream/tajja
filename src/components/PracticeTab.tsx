@@ -68,25 +68,34 @@ const HandStack: React.FC<{
   if (cards.length === 0) {
     return <div className="text-[10.5px] text-white/60 py-0.5">패를 모두 소진했습니다.</div>;
   }
+  const countLabel = <span className="text-[10px] font-bold text-white/70 tabular-nums shrink-0">{cards.length}장</span>;
+
+  // 안보기(비공개) 상태에서는 어차피 전부 같은 뒷면이라, 카드를 여러 장 겹쳐 봐야 정보가 늘지 않는다.
+  // 카드 뒷면 1장 + 장수 텍스트만 표시해 공간을 최소화한다.
+  if (isHidden) {
+    return (
+      <div className={`flex items-center gap-1.5 w-full ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
+        {align === 'right' && countLabel}
+        <div className={`w-8 h-12 shrink-0 rounded-sm ${colorClass} border ${borderClass} shadow-sm flex items-center justify-center`}>
+          <div className="w-3.5 h-3.5 rounded-full border border-white/40 flex items-center justify-center text-[7px] text-white/70 font-serif">
+            花
+          </div>
+        </div>
+        {align !== 'right' && countLabel}
+      </div>
+    );
+  }
+
+  // 보이기(공개) 상태에서는 실제 카드 각각이 서로 다른 정보를 담고 있으므로 계속 겹쳐서 보여준다.
   // 카드를 너무 많이 겹쳐 쌓으면 칸 밖으로 잘려 나온 카드가 반쪽만 보이는 지저분한 모습이 되므로,
   // 보여줄 카드 수를 제한하고 정확한 장수는 옆의 숫자 라벨로만 전달한다.
-  // 겹침 폭도 기존(-23px)보다 약 20% 줄여, 어떤 패인지 더 잘 구분되게 한다.
   const MAX_SHOWN = 5;
   const shownCards = cards.slice(0, MAX_SHOWN);
-  const countLabel = <span className="text-[10px] font-bold text-white/70 tabular-nums shrink-0">{cards.length}장</span>;
   const stack = (
     <div className="flex">
       {shownCards.map((card, i) => (
         <div key={card.id} className="shrink-0" style={{ marginLeft: i === 0 ? 0 : '-18px', zIndex: i }}>
-          {isHidden ? (
-            <div className={`w-8 h-12 rounded-sm ${colorClass} border ${borderClass} shadow-sm flex items-center justify-center`}>
-              <div className="w-3.5 h-3.5 rounded-full border border-white/40 flex items-center justify-center text-[7px] text-white/70 font-serif">
-                花
-              </div>
-            </div>
-          ) : (
-            <CardView card={card} size="xs" disabled={true} hideInfo={true} fullOpacity noBorder />
-          )}
+          <CardView card={card} size="xs" disabled={true} hideInfo={true} fullOpacity noBorder />
         </div>
       ))}
     </div>
