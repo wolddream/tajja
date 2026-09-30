@@ -103,6 +103,36 @@ const HandStack: React.FC<{
   );
 };
 
+// 상대가 먹은 패(공개 정보)를 겹쳐 쌓아 공간을 아끼는 더미. 상대1은 왼쪽, 상대2는 오른쪽으로 정렬한다.
+const CapturedStack: React.FC<{ cards: HwatuCard[]; align?: 'left' | 'right' }> = ({ cards, align = 'left' }) => {
+  if (cards.length === 0) return null;
+  const countLabel = <span className="text-[10px] font-bold text-white/70 tabular-nums shrink-0">{cards.length}장</span>;
+  const stack = (
+    <div className="flex">
+      {cards.map((card, idx) => (
+        <div key={`${card.id}-${idx}`} className="shrink-0" style={{ marginLeft: idx === 0 ? 0 : '-23px', zIndex: idx }}>
+          <CardView card={card} size="xs" disabled={true} hideInfo={true} />
+        </div>
+      ))}
+    </div>
+  );
+  return (
+    <div className={`flex items-center gap-1.5 p-1 bg-black/20 rounded-lg shrink-0 ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
+      {align === 'right' ? (
+        <>
+          {countLabel}
+          {stack}
+        </>
+      ) : (
+        <>
+          {stack}
+          {countLabel}
+        </>
+      )}
+    </div>
+  );
+};
+
 // 고/스톱 선택 모달 (사용자 차례에서 7점 이상 달성 시 표시)
 const GoStopModal: React.FC<{
   score: ScoreBreakdown;
@@ -663,8 +693,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const floorTop = floorCards.slice(0, Math.ceil(floorCards.length / 2));
   const floorBottom = floorCards.slice(Math.ceil(floorCards.length / 2));
 
-  const opponentCapturedTotal =
-    opponentCaptured.gwang.length + opponentCaptured.yeol.length + opponentCaptured.tti.length + opponentCaptured.pi.length;
   const userCapturedTotal =
     userCaptured.gwang.length + userCaptured.yeol.length + userCaptured.tti.length + userCaptured.pi.length;
 
@@ -919,13 +947,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                 colorClass="bg-[#9C3131]"
                 active={currentTurn === 'opp1' && !gameResult}
               />
-              {opponentCapturedTotal > 0 && (
-                <div className="flex flex-wrap items-center gap-0.5 p-1 bg-black/20 rounded-lg max-w-[46vw] max-h-9 overflow-hidden">
-                  {[...opponentCaptured.gwang, ...opponentCaptured.yeol, ...opponentCaptured.tti, ...opponentCaptured.pi].map((card, idx) => (
-                    <CardView key={`opp-cap-${card.id}-${idx}`} card={card} size="xs" disabled={true} hideInfo={true} />
-                  ))}
-                </div>
-              )}
+              <CapturedStack
+                cards={[...opponentCaptured.gwang, ...opponentCaptured.yeol, ...opponentCaptured.tti, ...opponentCaptured.pi]}
+                align="left"
+              />
             </div>
 
             {gameMode === 'gostop3' ? (
@@ -938,13 +963,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                   align="right"
                   active={currentTurn === 'opp2' && !gameResult}
                 />
-                {(opponent2Captured.gwang.length + opponent2Captured.yeol.length + opponent2Captured.tti.length + opponent2Captured.pi.length) > 0 && (
-                  <div className="flex flex-wrap items-center justify-end gap-0.5 p-1 bg-black/20 rounded-lg max-w-[46vw] max-h-9 overflow-hidden">
-                    {[...opponent2Captured.gwang, ...opponent2Captured.yeol, ...opponent2Captured.tti, ...opponent2Captured.pi].map((card, idx) => (
-                      <CardView key={`opp2-cap-${card.id}-${idx}`} card={card} size="xs" disabled={true} hideInfo={true} />
-                    ))}
-                  </div>
-                )}
+                <CapturedStack
+                  cards={[...opponent2Captured.gwang, ...opponent2Captured.yeol, ...opponent2Captured.tti, ...opponent2Captured.pi]}
+                  align="right"
+                />
               </div>
             ) : (
               <div className="flex flex-col items-end gap-0.5 bg-black/25 border border-white/10 rounded-xl px-2.5 py-1.5 text-right shrink-0">
