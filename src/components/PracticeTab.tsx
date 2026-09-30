@@ -176,7 +176,9 @@ const GoStopModal: React.FC<{
   goCount: number;
   onGo: () => void;
   onStop: () => void;
-}> = ({ score, goCount, onGo, onStop }) => (
+  // 고를 외쳤을 때 이어질 다음 수의 핵심 승부처(이유 보기 1번 항목과 동일한 내용)를 함께 보여준다.
+  coreReason?: string;
+}> = ({ score, goCount, onGo, onStop, coreReason }) => (
   <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4">
     <div className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-sm w-full p-5 text-center space-y-3">
       <div className="text-xs font-bold text-[#A9791C]">🎉 {STOP_THRESHOLD}점 달성!</div>
@@ -202,6 +204,12 @@ const GoStopModal: React.FC<{
           🔥 고! (계속)
         </button>
       </div>
+      {coreReason && (
+        <div className="pt-2 mt-1 border-t border-[#E5DFCE] text-left">
+          <div className="text-[11px] font-bold text-[#A9791C] mb-1">💡 (고 선택 시) 다음 수 핵심 승부처</div>
+          <p className="text-xs text-[#555] leading-relaxed">{coreReason}</p>
+        </div>
+      )}
     </div>
   </div>
 );
@@ -1311,6 +1319,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           goCount={goCounts.user}
           onGo={() => resolveGoStop('user', 'go')}
           onStop={() => resolveGoStop('user', 'stop')}
+          coreReason={bestRecommendation.primaryReason}
         />
       )}
 
