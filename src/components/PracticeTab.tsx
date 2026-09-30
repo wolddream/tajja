@@ -21,6 +21,11 @@ interface PracticeTabProps {
 
 type PlayerKey = 'user' | 'opp1' | 'opp2';
 
+// 자동 진행 속도 (내 차례 자동 진행 + 상대 턴 + 고스톱 자동 결정에 공통 적용되는 지연 시간)
+type AutoSpeed = 'slow' | 'normal' | 'fast';
+const AUTO_SPEED_MS: Record<AutoSpeed, number> = { slow: 1500, normal: 900, fast: 400 };
+const AUTO_SPEED_LABEL: Record<AutoSpeed, string> = { slow: '🐢 느림', normal: '🚶 보통', fast: '⚡ 빠름' };
+
 interface CapturedSummary {
   gwang: HwatuCard[];
   yeol: HwatuCard[];
@@ -498,8 +503,12 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   // 바닥패는 실제 고스톱에서도 항상 공개 정보라 항상 보여준다.
   // 대신 실전에서 미리 알 수 없는 "뒤집기 패(덱 맨 위 패)"를 보이기/안보기로 전환한다.
   const [showDeckTopCard, setShowDeckTopCard] = useState<boolean>(false);
-  // 수동(직접 카드 클릭) / 자동(AI 추천패를 버튼으로 대신 진행) 모드
+  // 수동(직접 카드 클릭) / 자동(AI 추천패로 알아서 진행) 모드
   const [autoMode, setAutoMode] = useState<boolean>(false);
+  // 자동 진행 속도 — 내 차례 자동 진행뿐 아니라 상대 턴 진행·고스톱 자동 결정에도 동일하게 적용해,
+  // 전체 게임 템포를 일관되게 조절한다.
+  const [autoSpeed, setAutoSpeed] = useState<AutoSpeed>('normal');
+  const autoDelayMs = AUTO_SPEED_MS[autoSpeed];
   // 전체화면 모드 (실제 게임 클라이언트처럼 화면을 꽉 채워서 플레이)
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   // 전체화면 전환이 실제로 끝난 시점의 뷰포트 높이(px)를 JS로 직접 측정해둔 값.
@@ -1014,10 +1023,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     if (!pendingGoStop || pendingGoStop === 'user' || gameResult) return;
     const count = goCounts[pendingGoStop];
     const choice: 'go' | 'stop' = count < 1 ? 'go' : 'stop';
-    const t = setTimeout(() => resolveGoStop(pendingGoStop, choice), 1000);
+    const t = setTimeout(() => resolveGoStop(pendingGoStop, choice), autoDelayMs);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingGoStop]);
+  }, [pendingGoStop, autoDelayMs]);
 
   // AI(상대1/상대2) 턴 자동 진행: 훈수 엔진을 그대로 재사용해 상대 시점에서 최적수를 계산한다.
   useEffect(() => {
@@ -1038,10 +1047,23 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       const captured = currentTurn === 'opp1' ? opponentCaptured : opponent2Captured;
       const { bestRecommendation } = evaluateHand(hand, floorCards, captured, userCaptured, gameMode, 'standard', [], null);
       applyPlay(currentTurn, bestRecommendation.card);
-    }, 750);
+    }, autoDelayMs);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTurn, gameResult, pendingGoStop, opponentHand, opponentHand2, floorCards]);
+  }, [currentTurn, gameResult, pendingGoStop, opponentHand, opponentHand2, floorCards, autoDelayMs]);
+
+  // 자동 모드에서는 내 차례에도 사용자가 버튼을 누르지 않아도 AI 추천대로 알아서 진행한다.
+  useEffect(() => {
+    if (!autoMode || gameResult || pendingGoStop) return;
+    if (currentTurn !== 'user') return;
+    if (userHand.length === 0) return;
+
+    const t = setTimeout(() => {
+      applyPlay('user', bestRecommendation.card);
+    }, autoDelayMs);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoMode, currentTurn, gameResult, pendingGoStop, userHand, floorCards, autoDelayMs]);
 
   // Preset situations for deliberate practice (교육용 스냅샷 — 턴제 상태도 함께 초기화)
   const loadScenario = (type: 'godori' | 'hongdan' | 'puck') => {
@@ -1247,6 +1269,19 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             >
               {autoMode ? '🤖 자동' : '🖐️ 수동'}
             </button>
+            {autoMode && (
+              <button
+                type="button"
+                onClick={() => {
+                  playClick();
+                  setAutoSpeed(prev => (prev === 'slow' ? 'normal' : prev === 'normal' ? 'fast' : 'slow'));
+                }}
+                aria-label="자동 진행 속도 변경 (탭하여 순환)"
+                className="shrink-0 px-2.5 py-1 rounded-md bg-black/40 hover:bg-black/60 border border-white/20 text-white text-[10.5px] font-bold cursor-pointer whitespace-nowrap"
+              >
+                {AUTO_SPEED_LABEL[autoSpeed]}
+              </button>
+            )}
             <button
               type="button"
               onClick={handleOpenReason}
@@ -1445,15 +1480,17 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           </div>
         </div>
 
-        {/* Bottom bar: 자동 모드일 때만 표시 (핵심 승부처는 바닥패 옆으로 이동해 별도 줄을 쓰지 않는다) */}
+        {/* Bottom bar: 자동 모드일 때만 표시. 내 차례도 잠시 후 알아서 진행되지만,
+            기다리지 않고 바로 넘기고 싶을 때를 위한 단축 버튼도 함께 둔다. */}
         {autoMode && isUserTurn && userHand.length > 0 && (
           <div className="relative z-10 shrink-0 flex items-center justify-end gap-2 px-3.5 py-1.5 mt-1 bg-black/30 border-t border-white/10 text-[10.5px] text-[#FAF6EC]">
+            <span className="text-white/60">⏳ 자동 진행 중…</span>
             <button
               type="button"
               onClick={() => applyPlay('user', bestRecommendation.card)}
               className="shrink-0 px-3 py-1.5 rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white text-[11px] font-bold cursor-pointer whitespace-nowrap animate-pulse"
             >
-              🤖 AI 추천대로 진행 →
+              ⏩ 지금 바로 진행
             </button>
           </div>
         )}
