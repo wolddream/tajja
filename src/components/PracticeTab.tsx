@@ -11,6 +11,24 @@ interface PracticeTabProps {
   onIncrementReasonCount: () => void;
 }
 
+// 상대/내 정보 배지 (실제 게임 클라이언트의 아바타 카드 느낌)
+const PlayerBadge: React.FC<{ label: string; sub: string; colorClass: string; align?: 'left' | 'right' }> = ({
+  label,
+  sub,
+  colorClass,
+  align = 'left',
+}) => (
+  <div className={`flex items-center gap-2 bg-black/35 border border-white/15 rounded-xl px-2.5 py-1.5 shrink-0 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}>
+    <div className={`w-8 h-8 rounded-full ${colorClass} flex items-center justify-center text-xs font-black text-white shrink-0 shadow-sm`}>
+      {label.slice(0, 1)}
+    </div>
+    <div className="leading-tight">
+      <div className="text-[11px] font-bold text-[#F4EEDC] whitespace-nowrap">{label}</div>
+      <div className="text-[9.5px] text-[#A5C7B5] whitespace-nowrap">{sub}</div>
+    </div>
+  </div>
+);
+
 export const PracticeTab: React.FC<PracticeTabProps> = ({
   onIncrementGameCount,
   onIncrementReasonCount,
@@ -24,6 +42,22 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [showDeckTopCard, setShowDeckTopCard] = useState<boolean>(false);
   // 수동(직접 카드 클릭) / 자동(AI 추천패를 버튼으로 대신 진행) 모드
   const [autoMode, setAutoMode] = useState<boolean>(false);
+  // 전체화면 모드 (실제 게임 클라이언트처럼 화면을 꽉 채워서 플레이)
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isFullscreen]);
 
   // Board State
   const [userHand, setUserHand] = useState<HwatuCard[]>([]);
@@ -289,9 +323,19 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     }
   };
 
+  // 바닥패를 위/아래 두 줄로 나눠 덱을 가운데 두고 감싸는 구도 (실제 게임 클라이언트의 대칭 배치 참고)
+  const floorTop = floorCards.slice(0, Math.ceil(floorCards.length / 2));
+  const floorBottom = floorCards.slice(Math.ceil(floorCards.length / 2));
+
+  const opponentCapturedTotal =
+    opponentCaptured.gwang.length + opponentCaptured.yeol.length + opponentCaptured.tti.length + opponentCaptured.pi.length;
+  const userCapturedTotal =
+    userCaptured.gwang.length + userCaptured.yeol.length + userCaptured.tti.length + userCaptured.pi.length;
+
   return (
-    <div className="space-y-5 pb-10">
-      {/* Control Header: Mode, Preset, Toggles, Random Button */}
+    <div className={isFullscreen ? 'fixed inset-0 z-[200] bg-[#0F1712] p-2 sm:p-3 overflow-y-auto space-y-3' : 'space-y-5 pb-10'}>
+      {/* Control Header: Mode, Preset, Toggles, Random Button (전체화면에서는 공간 확보를 위해 숨김) */}
+      {!isFullscreen && (
       <div className="bg-white border border-[#DDD4C0] rounded-xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
         {/* Left: Mode & Rules Selection */}
         <div className="flex flex-wrap items-center gap-3">
@@ -436,10 +480,24 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           >
             <span>🔄 패 랜덤 변경</span>
           </button>
+
+          {/* 전체화면 전환 */}
+          <button
+            type="button"
+            onClick={() => {
+              playClick();
+              setIsFullscreen(true);
+            }}
+            className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#2B3F5C] hover:bg-[#1E2E44] text-white shadow-xs transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+          >
+            <span>⛶ 전체화면</span>
+          </button>
         </div>
       </div>
+      )}
 
-      {/* Quick Scenario Preset Pills */}
+      {/* Quick Scenario Preset Pills (전체화면에서는 숨김) */}
+      {!isFullscreen && (
       <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs text-[#7A7466]">
         <span className="shrink-0 font-medium">실전 특수 상황:</span>
         <button
@@ -464,11 +522,12 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           💥 3장 겹친 뻑 먹기 찬스
         </button>
       </div>
+      )}
 
-      {/* Main Playing Table Arena — 한 화면에 다 들어오도록 고정 높이 + 컴팩트 레이아웃 */}
+      {/* Main Playing Table Arena — 실제 게임 클라이언트 구도(코너 아바타 + 대칭 바닥패) 참고, 한 화면에 다 들어오도록 컴팩트 레이아웃 */}
       <div
         className="bg-[#2D4536] border-4 border-[#3D2817] rounded-2xl shadow-xl text-white relative overflow-hidden flex flex-col"
-        style={{ maxHeight: 'min(78vh, 720px)' }}
+        style={{ maxHeight: isFullscreen ? 'calc(100vh - 24px)' : 'min(78vh, 720px)', height: isFullscreen ? 'calc(100vh - 24px)' : undefined }}
       >
         {/* Subtle Felt Texture Vignette */}
         <div className="absolute inset-0 bg-radial from-transparent via-black/10 to-black/35 pointer-events-none" />
@@ -486,37 +545,57 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               승률 <b className="text-white tabular-nums">{bestRecommendation.winRate}%</b>
             </span>
           </div>
-          <button
-            type="button"
-            onClick={handleOpenReason}
-            className="shrink-0 px-2.5 py-1 rounded-md bg-[#2B3F5C] hover:bg-[#1E2E44] text-white text-[10.5px] font-bold cursor-pointer whitespace-nowrap"
-          >
-            🔍 이유 보기
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleOpenReason}
+              className="shrink-0 px-2.5 py-1 rounded-md bg-[#2B3F5C] hover:bg-[#1E2E44] text-white text-[10.5px] font-bold cursor-pointer whitespace-nowrap"
+            >
+              🔍 이유 보기
+            </button>
+            {isFullscreen && (
+              <button
+                type="button"
+                onClick={() => { playClick(); setIsFullscreen(false); }}
+                className="shrink-0 px-2.5 py-1 rounded-md bg-black/40 hover:bg-black/60 border border-white/20 text-white text-[10.5px] font-bold cursor-pointer whitespace-nowrap"
+              >
+                ⤢ 전체화면 종료
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Opponent Area */}
+        {/* Opponent Area — 코너 아바타 배지 구도 */}
         <div className="relative z-10 shrink-0 px-3.5 pt-2.5 space-y-1.5">
-          <div className="flex items-center justify-between text-[10.5px] text-[#A5C7B5]">
-            <span className="font-bold text-[#E5DFCE]">
-              {gameMode === 'matgo' ? '상대 (2인)' : '상대 1 · 2 (3인)'}
-              {' · '}
-              {showOpponentCards ? '공개' : '비공개'}
-            </span>
-            <span>
-              먹은 패 광{opponentCaptured.gwang.length}·열{opponentCaptured.yeol.length}·띠{opponentCaptured.tti.length}·피{opponentCaptured.pi.length}
-            </span>
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-col items-start gap-1">
+              <PlayerBadge
+                label={gameMode === 'matgo' ? '상대' : '상대1'}
+                sub={showOpponentCards ? '패 공개' : '비공개'}
+                colorClass="bg-[#9C3131]"
+              />
+              {opponentCapturedTotal > 0 && (
+                <div className="flex flex-wrap items-center gap-0.5 p-1 bg-black/20 rounded-lg max-w-[46vw] max-h-9 overflow-hidden">
+                  {[...opponentCaptured.gwang, ...opponentCaptured.yeol, ...opponentCaptured.tti, ...opponentCaptured.pi].map((card, idx) => (
+                    <CardView key={`opp-cap-${card.id}-${idx}`} card={card} size="xs" disabled={true} hideInfo={true} />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {gameMode === 'gostop3' ? (
+              <div className="flex flex-col items-end gap-1">
+                <PlayerBadge label="상대2" sub={showOpponentCards ? '패 공개' : '비공개'} colorClass="bg-[#5A6E72]" align="right" />
+              </div>
+            ) : (
+              <div className="flex flex-col items-end gap-0.5 bg-black/25 border border-white/10 rounded-xl px-2.5 py-1.5 text-right shrink-0">
+                <span className="text-[9px] text-[#A5C7B5] whitespace-nowrap">덱 남은 패</span>
+                <span className="text-[13px] font-black text-white tabular-nums">{remainingDeck.length}장</span>
+              </div>
+            )}
           </div>
 
-          {(opponentCaptured.gwang.length + opponentCaptured.yeol.length + opponentCaptured.tti.length + opponentCaptured.pi.length) > 0 && (
-            <div className="flex flex-wrap items-center gap-1 p-1.5 bg-black/15 rounded-lg max-h-11 overflow-hidden">
-              {[...opponentCaptured.gwang, ...opponentCaptured.yeol, ...opponentCaptured.tti, ...opponentCaptured.pi].map((card, idx) => (
-                <CardView key={`opp-cap-${card.id}-${idx}`} card={card} size="xs" disabled={true} hideInfo={true} />
-              ))}
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
             {opponentHand.length > 0 ? (
               opponentHand.map((card, idx) => (
                 <CardView key={card.id + idx} card={card} size="xs" isHidden={!showOpponentCards} disabled={true} />
@@ -527,7 +606,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           </div>
 
           {gameMode === 'gostop3' && opponentHand2.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center justify-center gap-1.5">
               {opponentHand2.map((card, idx) => (
                 <CardView key={card.id + idx} card={card} size="xs" isHidden={!showOpponentCards} disabled={true} />
               ))}
@@ -535,55 +614,66 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           )}
         </div>
 
-        {/* Center: Deck + Floor — 남는 공간을 채우되, 넘치면 이 영역만 스크롤(전체 화면 스크롤 방지) */}
-        <div className="relative z-10 my-2 mx-3.5 px-3 py-2 bg-black/25 rounded-xl border border-white/10 overflow-y-auto max-h-[38vh] flex flex-col">
-          <div className="flex items-center justify-between text-[10.5px] text-[#A5C7B5] mb-1.5">
+        {/* Center: Deck + Floor — 덱을 가운데 두고 바닥패를 위/아래로 감싸는 대칭 구도 */}
+        <div className="relative z-10 my-2 mx-3.5 px-3 py-2 bg-black/25 rounded-xl border border-white/10 overflow-y-auto max-h-[42vh] flex-1 flex flex-col items-center justify-center gap-2">
+          <div className="w-full flex items-center justify-between text-[10.5px] text-[#A5C7B5]">
             <span className="font-bold text-[#FAF6EC]">바닥패 ({floorCards.length}장)</span>
             {lastDeckCard && (
               <span className="text-[#F3D999]">방금 뒤집힘: <b className="underline">{lastDeckCard.name}</b></span>
             )}
           </div>
-          <div className="flex-1 flex items-center gap-3">
-            <div className="shrink-0 flex flex-col items-center">
-              {showDeckTopCard && remainingDeck.length > 0 ? (
-                <CardView card={remainingDeck[0]} size="sm" disabled={true} />
-              ) : (
-                <div className="w-13 h-20 bg-[#9C3131] border border-[#FAF6EC]/30 rounded-md shadow flex items-center justify-center text-white text-[10px] font-bold">
-                  덱 {remainingDeck.length}장
-                </div>
-              )}
-              <span className="text-[9px] text-white/60 mt-1 text-center leading-tight">
-                {showDeckTopCard && remainingDeck.length > 0 ? '다음 뒤집힐 패' : '뒤집기 대기'}
-              </span>
-            </div>
-            <div className="flex-1 flex flex-wrap items-center gap-1.5">
-              {floorCards.length > 0 ? (
-                floorCards.map(card => (
-                  <CardView key={card.id} card={card} size="sm" disabled={true} />
-                ))
-              ) : (
-                <div className="text-[11px] text-white/60 py-2">바닥이 비었습니다 (싹쓸이 상황!)</div>
-              )}
-            </div>
+
+          {/* 위쪽 바닥패 줄 */}
+          <div className="flex flex-wrap items-center justify-center gap-1.5 min-h-[3rem]">
+            {floorTop.map(card => (
+              <CardView key={card.id} card={card} size="sm" disabled={true} />
+            ))}
+          </div>
+
+          {/* 가운데 덱 */}
+          <div className="shrink-0 flex flex-col items-center">
+            {showDeckTopCard && remainingDeck.length > 0 ? (
+              <CardView card={remainingDeck[0]} size="sm" disabled={true} />
+            ) : (
+              <div className="w-13 h-20 bg-[#9C3131] border border-[#FAF6EC]/30 rounded-md shadow flex items-center justify-center text-white text-[10px] font-bold">
+                덱 {remainingDeck.length}장
+              </div>
+            )}
+            <span className="text-[9px] text-white/60 mt-1 text-center leading-tight">
+              {showDeckTopCard && remainingDeck.length > 0 ? '다음 뒤집힐 패' : '뒤집기 대기'}
+            </span>
+          </div>
+
+          {/* 아래쪽 바닥패 줄 */}
+          <div className="flex flex-wrap items-center justify-center gap-1.5 min-h-[3rem]">
+            {floorBottom.length > 0 ? (
+              floorBottom.map(card => (
+                <CardView key={card.id} card={card} size="sm" disabled={true} />
+              ))
+            ) : floorTop.length === 0 ? (
+              <div className="text-[11px] text-white/60 py-2">바닥이 비었습니다 (싹쓸이 상황!)</div>
+            ) : null}
           </div>
         </div>
 
-        {/* My Captured Pile */}
-        {(userCaptured.gwang.length + userCaptured.yeol.length + userCaptured.tti.length + userCaptured.pi.length) > 0 && (
-          <div className="relative z-10 shrink-0 mx-3.5 flex flex-wrap items-center gap-1 p-1.5 bg-black/15 rounded-lg max-h-11 overflow-hidden">
-            {[...userCaptured.gwang, ...userCaptured.yeol, ...userCaptured.tti, ...userCaptured.pi].map((card, idx) => (
-              <CardView key={`my-cap-${card.id}-${idx}`} card={card} size="xs" disabled={true} hideInfo={true} />
-            ))}
+        {/* My Area — 코너 아바타 배지 구도 (상대와 대칭) */}
+        <div className="relative z-10 shrink-0 px-3.5 pb-1 space-y-1.5">
+          <div className="flex items-end justify-between gap-2">
+            <PlayerBadge label="나" sub={`획득 ${userCapturedTotal}장`} colorClass="bg-[#2B3F5C]" />
+            {userCapturedTotal > 0 && (
+              <div className="flex flex-wrap items-center justify-end gap-0.5 p-1 bg-black/20 rounded-lg max-w-[60vw] max-h-9 overflow-hidden">
+                {[...userCaptured.gwang, ...userCaptured.yeol, ...userCaptured.tti, ...userCaptured.pi].map((card, idx) => (
+                  <CardView key={`my-cap-${card.id}-${idx}`} card={card} size="xs" disabled={true} hideInfo={true} />
+                ))}
+              </div>
+            )}
           </div>
-        )}
 
-        {/* My Hand */}
-        <div className="relative z-10 shrink-0 px-3.5 pt-1.5">
-          <div className="flex items-center justify-between text-[10.5px] text-[#A5C7B5] mb-1">
+          <div className="flex items-center justify-between text-[10.5px] text-[#A5C7B5]">
             <span className="font-bold text-[#E5DFCE]">내 손패 ({userHand.length}장)</span>
             <span>획득 광{userCaptured.gwang.length}·열{userCaptured.yeol.length}·띠{userCaptured.tti.length}·피{userCaptured.pi.length}</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             {userHand.map(card => {
               const isRecommended = card.id === bestRecommendation.card.id;
               const isSecond = secondRecommendation && card.id === secondRecommendation.card.id;
@@ -623,8 +713,8 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         </div>
       </div>
 
-      {/* 손패 전체 순위 비교 (슬림 바) */}
-      {recommendations.length > 1 && (
+      {/* 손패 전체 순위 비교 (슬림 바, 전체화면에서는 숨김) */}
+      {!isFullscreen && recommendations.length > 1 && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
           <span className="shrink-0 font-semibold text-[#7A7466]">순위 비교:</span>
           {recommendations.slice(0, 4).map((rec, index) => (
