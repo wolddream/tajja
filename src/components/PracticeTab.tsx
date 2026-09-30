@@ -532,12 +532,24 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [autoMode, setAutoMode] = useState<boolean>(false);
   // 전체화면 모드 (실제 게임 클라이언트처럼 화면을 꽉 채워서 플레이)
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  // 전체화면 전환이 실제로 끝난 시점의 뷰포트 높이(px)를 JS로 직접 측정해둔 값.
+  // 일부 브라우저(특히 삼성 인터넷)는 requestFullscreen() 호출 직후 CSS의 100dvh 값이
+  // 주소창이 사라지는 애니메이션이 끝나기 전 값으로 한 번 굳어버려, 화면이 실제보다 길게
+  // 계산되고 아래쪽 내용이 화면 밖으로 잘리는 경우가 있다(전체화면을 한 번 껐다 켜면 정상으로
+  // 돌아오는 이유). fullscreenchange/resize 때마다 다시 측정해 이 값을 갱신한다.
+  const [fullscreenHeightPx, setFullscreenHeightPx] = useState<number | null>(null);
   // 게임 화면 안의 ⚙️ 아이콘으로 여는 설정 패널 (인원/시야 옵션/자동모드/시나리오 등을 모아둠)
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   // "핵심 승부처" 문구가 좁은 칸에 줄임 표시될 때, 🔍 아이콘으로 전체 내용을 크게 볼 수 있는 팝업
   const [isCoreReasonOpen, setIsCoreReasonOpen] = useState<boolean>(false);
   // 실제 브라우저 전체화면 API 대상 (주소창 등 브라우저 UI까지 가리기 위해 사용)
   const fullscreenRootRef = useRef<HTMLDivElement>(null);
+  // 게임판(felt table) 자체 — 실제 내용 높이(scrollHeight)가 화면에 고정된 표시 높이(clientHeight)를
+  // 넘는지 측정해, 넘칠 때만 손패/핵심 승부처 글자를 자동으로 줄이기 위해 참조한다.
+  const tableRef = useRef<HTMLDivElement>(null);
+  // 먹은 패가 늘어나거나 손패가 두 줄로 넘어가는 등, 내용이 화면 높이를 넘길 것 같을 때 자동으로 켜지는
+  // 축소 레이아웃. 한 번 켜지면 다음 새 대국 전까지 유지해(단방향) 줄었다 늘었다 깜빡이는 것을 막는다.
+  const [isCompactLayout, setIsCompactLayout] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isFullscreen) return;
@@ -575,12 +587,24 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   }, []);
 
   // 사용자가 기기 뒤로가기/제스처 등으로 브라우저 전체화면만 빠져나간 경우, 앱 상태도 함께 동기화한다.
+  // 동시에 fullscreenchange(전환이 실제로 끝난 시점)와 resize마다 뷰포트 높이를 다시 측정해,
+  // 위 fullscreenHeightPx의 100dvh 대체값을 항상 최신 상태로 유지한다.
   useEffect(() => {
+    const measureViewport = () => {
+      setFullscreenHeightPx(document.fullscreenElement ? (window.visualViewport?.height ?? window.innerHeight) : null);
+    };
     const onFullscreenChange = () => {
       if (!document.fullscreenElement) setIsFullscreen(false);
+      measureViewport();
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+    window.addEventListener('resize', measureViewport);
+    window.visualViewport?.addEventListener('resize', measureViewport);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      window.removeEventListener('resize', measureViewport);
+      window.visualViewport?.removeEventListener('resize', measureViewport);
+    };
   }, []);
 
   // Board State
@@ -680,6 +704,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     setLastDeckCard(null);
     setSelectedCardId(null);
     setActionLog('새로운 대국이 시작되었습니다. 내 차례부터 순서대로 진행됩니다.');
+    setIsCompactLayout(false);
     resetTurnState();
   }, [gameMode]);
 
@@ -1042,6 +1067,31 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const isUserTurn = currentTurn === 'user' && !pendingGoStop && !gameResult;
   const cardsDisabled = autoMode || !isUserTurn;
 
+  // 먹은 패가 늘거나 손패가 줄바꿈되는 등 실제 내용 높이가 화면에 고정된 표시 높이를 넘어서는 경우를
+  // 대비한 안전장치 — 넘칠 때만 손패/핵심 승부처 글자를 자동으로 한 단계 줄인다(스크롤 대신).
+  useEffect(() => {
+    const el = tableRef.current;
+    if (!el || isCompactLayout) return;
+    if (el.scrollHeight > el.clientHeight + 2) {
+      setIsCompactLayout(true);
+    }
+  }, [
+    isCompactLayout,
+    isFullscreen,
+    fullscreenHeightPx,
+    userHand.length,
+    floorCards.length,
+    opponentHand.length,
+    opponentHand2.length,
+    gameMode,
+    autoMode,
+    isUserTurn,
+    userCaptured,
+    opponentCaptured,
+    opponent2Captured,
+    bestRecommendation.primaryReason,
+  ]);
+
   return (
     <div
       ref={fullscreenRootRef}
@@ -1050,10 +1100,15 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       {/* Main Playing Table Arena — 실제 게임 클라이언트 구도(코너 아바타 + 대칭 바닥패) 참고, 한 화면에 다 들어오도록 컴팩트 레이아웃.
           모든 설정은 테이블 안의 ⚙️ 설정 아이콘을 눌러 여는 패널에서 관리한다. */}
       <div
+        ref={tableRef}
         className="bg-[#2D4536] border-4 border-[#3D2817] rounded-2xl shadow-xl text-white relative overflow-hidden flex flex-col"
         style={{
-          maxHeight: isFullscreen ? 'calc(100dvh - 24px)' : 'min(82vh, 720px)',
-          height: isFullscreen ? 'calc(100dvh - 24px)' : undefined,
+          maxHeight: isFullscreen
+            ? (fullscreenHeightPx ? `${fullscreenHeightPx - 24}px` : 'calc(100dvh - 24px)')
+            : 'min(82vh, 720px)',
+          height: isFullscreen
+            ? (fullscreenHeightPx ? `${fullscreenHeightPx - 24}px` : 'calc(100dvh - 24px)')
+            : undefined,
         }}
       >
         {/* Subtle Felt Texture Vignette */}
@@ -1206,7 +1261,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               <span>💡 핵심 승부처</span>
               <span aria-label="전체 내용 크게 보기" className="shrink-0">🔍</span>
             </button>
-            <div className="text-[11.5px] leading-snug text-white/85 line-clamp-5">
+            <div className={`leading-snug text-white/85 ${isCompactLayout ? 'text-[10px] line-clamp-3' : 'text-[11.5px] line-clamp-5'}`}>
               {bestRecommendation.primaryReason}
             </div>
           </div>
@@ -1274,7 +1329,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                 <CardView
                   key={card.id}
                   card={card}
-                  size="compact"
+                  size={isCompactLayout ? 'xs' : 'compact'}
                   isRecommended={isRecommended}
                   recommendationRank={isRecommended ? 1 : (isSecond ? 2 : undefined)}
                   isSelected={isSelected}
