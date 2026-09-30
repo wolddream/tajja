@@ -806,9 +806,12 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       setResultModalOpen(true);
       setPendingGoStop(null);
       setPendingScore(null);
+      // 승패가 실제로 결정된 한 판이 끝난 시점에만 "연습 진행 횟수"를 1회 카운트한다
+      // (패를 낼 때마다 카운트되던 것을 게임 종료 시점 1회로 변경).
+      onIncrementGameCount();
       void finalHands;
     },
-    [goCounts, turnOrder]
+    [goCounts, turnOrder, onIncrementGameCount]
   );
 
   // 다음 차례로 넘긴다. justPlayed 플레이어의 방금 낸 후 손패 장수를 overrideHandLen으로 넘기면
@@ -853,7 +856,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       if (gameResult || pendingGoStop) return;
 
       playCardSnap();
-      if (playerKey === 'user') onIncrementGameCount();
 
       const currentHand = getHand(playerKey);
       const matches = floorCards.filter(f => f.month === card.month);
@@ -925,7 +927,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       const capturedSnapshot: Partial<Record<PlayerKey, CapturedSummary>> = { [playerKey]: nextCaptured };
       advanceTurn(playerKey, newHandAfter.length, { [playerKey]: newHandAfter }, capturedSnapshot);
     },
-    [gameResult, pendingGoStop, getHand, getCaptured, floorCards, remainingDeck, advanceTurn, onIncrementGameCount]
+    [gameResult, pendingGoStop, getHand, getCaptured, floorCards, remainingDeck, advanceTurn]
   );
 
   // 고/스톱 결정 처리 (사용자 버튼 클릭 또는 AI 자동 결정)
