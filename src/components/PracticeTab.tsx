@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { HwatuCard, GameMode, RulePreset } from '../types/hwatu';
+import { HwatuCard, GameMode } from '../types/hwatu';
 import { HWATU_DECK, shuffleDeck } from '../utils/hwatuData';
 import { evaluateHand } from '../utils/engine';
 import { calculateScore, STOP_THRESHOLD, ScoreBreakdown } from '../utils/scoring';
@@ -278,13 +278,164 @@ const GameResultModal: React.FC<{
   </div>
 );
 
+// 게임 화면의 ⚙️ 아이콘으로 여는 설정 패널. 인원/시야 옵션/자동모드/연습 시나리오/새 대국을 한곳에 모아,
+// 게임 화면 바깥에는 별도의 설정 UI를 두지 않는다.
+const SettingsModal: React.FC<{
+  gameMode: GameMode;
+  onModeChange: (mode: GameMode) => void;
+  showOpponentCards: boolean;
+  onToggleOpponentCards: () => void;
+  showDeckTopCard: boolean;
+  onToggleDeckTopCard: () => void;
+  autoMode: boolean;
+  onSetAutoMode: (v: boolean) => void;
+  onNewGame: () => void;
+  onLoadScenario: (type: 'godori' | 'hongdan' | 'puck') => void;
+  onClose: () => void;
+}> = ({
+  gameMode,
+  onModeChange,
+  showOpponentCards,
+  onToggleOpponentCards,
+  showDeckTopCard,
+  onToggleDeckTopCard,
+  autoMode,
+  onSetAutoMode,
+  onNewGame,
+  onLoadScenario,
+  onClose,
+}) => (
+  <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-4 max-h-[85vh] overflow-y-auto relative"
+      onClick={e => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="설정 닫기"
+        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/10 hover:bg-black/20 text-[#555] text-sm font-bold flex items-center justify-center cursor-pointer"
+      >
+        ✕
+      </button>
+      <div className="text-sm font-bold text-[#A9791C]">⚙️ 설정</div>
+
+      <div className="space-y-1.5">
+        <div className="text-[11px] font-bold text-[#7A7466]">인원 선택</div>
+        <div className="flex items-center gap-1 p-1 bg-white border border-[#E5DFCE] rounded-lg">
+          <button
+            type="button"
+            onClick={() => onModeChange('matgo')}
+            className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              gameMode === 'matgo' ? 'bg-[#2B3F5C] text-white shadow-xs' : 'text-[#666] hover:text-[#111]'
+            }`}
+          >
+            맞고 (2인)
+          </button>
+          <button
+            type="button"
+            onClick={() => onModeChange('gostop3')}
+            className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              gameMode === 'gostop3' ? 'bg-[#2B3F5C] text-white shadow-xs' : 'text-[#666] hover:text-[#111]'
+            }`}
+          >
+            3인 고스톱
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="text-[11px] font-bold text-[#7A7466]">시야 옵션 (보기 설정 시, 보이는 패를 반영하여 훈수패를 선정합니다)</div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onToggleOpponentCards}
+            className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer ${
+              showOpponentCards ? 'bg-[#3B6255] text-white border-[#3B6255]' : 'bg-white text-[#555] border-[#DDD4C0] hover:border-[#3B6255]'
+            }`}
+          >
+            상대패: {showOpponentCards ? '보이기' : '안보기(실전)'}
+          </button>
+          <button
+            type="button"
+            onClick={onToggleDeckTopCard}
+            className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer ${
+              showDeckTopCard ? 'bg-[#3B6255] text-white border-[#3B6255]' : 'bg-white text-[#555] border-[#DDD4C0] hover:border-[#3B6255]'
+            }`}
+          >
+            뒤집기 패: {showDeckTopCard ? '보이기' : '안보기(실전)'}
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="text-[11px] font-bold text-[#7A7466]">진행 방식 (자동 모드는 카드를 직접 못 누르고, 'AI 추천대로 진행' 버튼으로만 다음 수를 둡니다)</div>
+        <div className="flex items-center gap-1 p-1 bg-white border border-[#E5DFCE] rounded-lg">
+          <button
+            type="button"
+            onClick={() => onSetAutoMode(false)}
+            className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              !autoMode ? 'bg-[#2B3F5C] text-white shadow-xs' : 'text-[#666] hover:text-[#111]'
+            }`}
+          >
+            🖐️ 수동
+          </button>
+          <button
+            type="button"
+            onClick={() => onSetAutoMode(true)}
+            className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              autoMode ? 'bg-[#A9791C] text-white shadow-xs' : 'text-[#666] hover:text-[#111]'
+            }`}
+          >
+            🤖 자동
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="text-[11px] font-bold text-[#7A7466]">실전 특수 상황 연습</div>
+        <div className="flex flex-col gap-1.5">
+          <button
+            type="button"
+            onClick={() => onLoadScenario('godori')}
+            className="px-2.5 py-1.5 rounded-md bg-white border border-[#DDD4C0] hover:border-[#A9791C] text-[#222] text-xs text-left cursor-pointer"
+          >
+            🐦 상대 고도리 위기 차단
+          </button>
+          <button
+            type="button"
+            onClick={() => onLoadScenario('hongdan')}
+            className="px-2.5 py-1.5 rounded-md bg-white border border-[#DDD4C0] hover:border-[#A9791C] text-[#222] text-xs text-left cursor-pointer"
+          >
+            🔴 내 홍단 3점 완성
+          </button>
+          <button
+            type="button"
+            onClick={() => onLoadScenario('puck')}
+            className="px-2.5 py-1.5 rounded-md bg-white border border-[#DDD4C0] hover:border-[#A9791C] text-[#222] text-xs text-left cursor-pointer"
+          >
+            💥 3장 겹친 뻑 먹기 찬스
+          </button>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onNewGame}
+        className="w-full py-2.5 rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white text-sm font-bold cursor-pointer"
+      >
+        🔄 새 대국 시작
+      </button>
+    </div>
+  </div>
+);
+
 export const PracticeTab: React.FC<PracticeTabProps> = ({
   onIncrementGameCount,
   onIncrementReasonCount,
 }) => {
   // Game settings
   const [gameMode, setGameMode] = useState<GameMode>('matgo');
-  const [rulePreset, setRulePreset] = useState<RulePreset>('standard');
   const [showOpponentCards, setShowOpponentCards] = useState<boolean>(false);
   // 바닥패는 실제 고스톱에서도 항상 공개 정보라 항상 보여준다.
   // 대신 실전에서 미리 알 수 없는 "뒤집기 패(덱 맨 위 패)"를 보이기/안보기로 전환한다.
@@ -293,6 +444,8 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [autoMode, setAutoMode] = useState<boolean>(false);
   // 전체화면 모드 (실제 게임 클라이언트처럼 화면을 꽉 채워서 플레이)
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  // 게임 화면 안의 ⚙️ 아이콘으로 여는 설정 패널 (인원/시야 옵션/자동모드/시나리오 등을 모아둠)
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isFullscreen) return;
@@ -431,11 +584,11 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       userCaptured,
       opponentCaptured,
       gameMode,
-      rulePreset,
+      'standard',
       visibleOpponentHands,
       visibleDeckTopCard
     );
-  }, [userHand, floorCards, userCaptured, opponentCaptured, gameMode, rulePreset, visibleOpponentHands, visibleDeckTopCard]);
+  }, [userHand, floorCards, userCaptured, opponentCaptured, gameMode, visibleOpponentHands, visibleDeckTopCard]);
 
   // Second recommendation for comparison
   const secondRecommendation = recommendations.length > 1 ? recommendations[1] : null;
@@ -446,12 +599,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     playClick();
     setGameMode(newMode);
     generateNewSituation(newMode);
-  };
-
-  // Handle Preset Change
-  const handleRuleChange = (preset: RulePreset) => {
-    playClick();
-    setRulePreset(preset);
   };
 
   // Handle "이유 자세히 보기" click
@@ -674,7 +821,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
 
     const t = setTimeout(() => {
       const captured = currentTurn === 'opp1' ? opponentCaptured : opponent2Captured;
-      const { bestRecommendation } = evaluateHand(hand, floorCards, captured, userCaptured, gameMode, rulePreset, [], null);
+      const { bestRecommendation } = evaluateHand(hand, floorCards, captured, userCaptured, gameMode, 'standard', [], null);
       applyPlay(currentTurn, bestRecommendation.card);
     }, 750);
     return () => clearTimeout(t);
@@ -682,10 +829,15 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   }, [currentTurn, gameResult, pendingGoStop, opponentHand, opponentHand2, floorCards]);
 
   // Preset situations for deliberate practice (교육용 스냅샷 — 턴제 상태도 함께 초기화)
-  const loadScenario = (type: 'godori' | 'hongdan' | 'puck' | 'safe') => {
+  const loadScenario = (type: 'godori' | 'hongdan' | 'puck') => {
     playClick();
     resetTurnState();
-    setOpponent2Captured(EMPTY_CAPTURED);
+
+    let userHandNext: HwatuCard[];
+    let floorNext: HwatuCard[];
+    let userCapturedNext: CapturedSummary;
+    let opponentCapturedNext: CapturedSummary;
+    let logNext: string;
 
     if (type === 'godori') {
       const m8bird = HWATU_DECK.find(c => c.id === 'm8_godori')!;
@@ -695,45 +847,67 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       const m1pi = HWATU_DECK.find(c => c.id === 'm1_pi1')!;
       const m7pi = HWATU_DECK.find(c => c.id === 'm7_pi1')!;
 
-      setUserHand([m8bird, m3gwang, m1pi, m7pi]);
-      setFloorCards([m8floor, m3floor, HWATU_DECK.find(c => c.id === 'm5_pi1')!, HWATU_DECK.find(c => c.id === 'm10_pi1')!]);
-      setOpponentCaptured({
+      userHandNext = [m8bird, m3gwang, m1pi, m7pi];
+      floorNext = [m8floor, m3floor, HWATU_DECK.find(c => c.id === 'm5_pi1')!, HWATU_DECK.find(c => c.id === 'm10_pi1')!];
+      opponentCapturedNext = {
         gwang: [],
         yeol: [HWATU_DECK.find(c => c.id === 'm2_godori')!, HWATU_DECK.find(c => c.id === 'm4_godori')!],
         tti: [],
         pi: [HWATU_DECK.find(c => c.id === 'm6_pi1')!, HWATU_DECK.find(c => c.id === 'm9_pi1')!]
-      });
-      setUserCaptured(EMPTY_CAPTURED);
-      setActionLog('시나리오 로드: [상대 고도리 위기] 상대가 새 2장을 확보했습니다. 8월 기러기 차단이 시급합니다.');
+      };
+      userCapturedNext = EMPTY_CAPTURED;
+      logNext = '시나리오 로드: [상대 고도리 위기] 상대가 새 2장을 확보했습니다. 8월 기러기 차단이 시급합니다.';
     } else if (type === 'hongdan') {
       const m1hong = HWATU_DECK.find(c => c.id === 'm1_hongdan')!;
       const m11gwang = HWATU_DECK.find(c => c.id === 'm11_gwang')!;
       const m1floor = HWATU_DECK.find(c => c.id === 'm1_pi1')!;
-      setUserHand([m1hong, m11gwang, HWATU_DECK.find(c => c.id === 'm4_pi1')!]);
-      setFloorCards([m1floor, HWATU_DECK.find(c => c.id === 'm9_pi1')!, HWATU_DECK.find(c => c.id === 'm6_pi1')!]);
-      setUserCaptured({
+      userHandNext = [m1hong, m11gwang, HWATU_DECK.find(c => c.id === 'm4_pi1')!];
+      floorNext = [m1floor, HWATU_DECK.find(c => c.id === 'm9_pi1')!, HWATU_DECK.find(c => c.id === 'm6_pi1')!];
+      userCapturedNext = {
         gwang: [],
         yeol: [],
         tti: [HWATU_DECK.find(c => c.id === 'm2_hongdan')!, HWATU_DECK.find(c => c.id === 'm3_hongdan')!],
         pi: []
-      });
-      setOpponentCaptured({ gwang: [], yeol: [], tti: [], pi: [HWATU_DECK.find(c => c.id === 'm7_pi1')!] });
-      setActionLog('시나리오 로드: [홍단 완성 찬스] 내 홍단 2장 확보 상태에서 1월 홍단을 먹어 3점을 완성할 기회입니다.');
-    } else if (type === 'puck') {
+      };
+      opponentCapturedNext = { gwang: [], yeol: [], tti: [], pi: [HWATU_DECK.find(c => c.id === 'm7_pi1')!] };
+      logNext = '시나리오 로드: [홍단 완성 찬스] 내 홍단 2장 확보 상태에서 1월 홍단을 먹어 3점을 완성할 기회입니다.';
+    } else {
       const m6clean = HWATU_DECK.find(c => c.id === 'm6_cheongdan')!;
-      setUserHand([m6clean, HWATU_DECK.find(c => c.id === 'm1_gwang')!, HWATU_DECK.find(c => c.id === 'm8_pi1')!]);
-      setFloorCards([
+      userHandNext = [m6clean, HWATU_DECK.find(c => c.id === 'm1_gwang')!, HWATU_DECK.find(c => c.id === 'm8_pi1')!];
+      floorNext = [
         HWATU_DECK.find(c => c.id === 'm6_yeol')!,
         HWATU_DECK.find(c => c.id === 'm6_pi1')!,
         HWATU_DECK.find(c => c.id === 'm6_pi2')!,
         HWATU_DECK.find(c => c.id === 'm1_pi1')!,
-      ]);
-      setUserCaptured(EMPTY_CAPTURED);
-      setOpponentCaptured(EMPTY_CAPTURED);
-      setActionLog('시나리오 로드: [바닥 3장 뻑 먹기 찬스] 6월 3장이 바닥에 겹쳐있습니다. 쓸어담으면 피 뺏기까지 발동합니다.');
-    } else {
-      generateNewSituation(gameMode);
+      ];
+      userCapturedNext = EMPTY_CAPTURED;
+      opponentCapturedNext = EMPTY_CAPTURED;
+      logNext = '시나리오 로드: [바닥 3장 뻑 먹기 찬스] 6월 3장이 바닥에 겹쳐있습니다. 쓸어담으면 피 뺏기까지 발동합니다.';
     }
+
+    // 시나리오에서 이미 쓰인 카드를 제외한 나머지로 상대 손패·남은 덱을 채워, 카드가 중복되거나
+    // 이전 대국의 상대 패가 그대로 남아 있는(턴 진행 시 오작동하는) 문제 없이 이어서 진행할 수 있게 한다.
+    const usedIds = new Set([
+      ...userHandNext,
+      ...floorNext,
+      ...userCapturedNext.gwang, ...userCapturedNext.yeol, ...userCapturedNext.tti, ...userCapturedNext.pi,
+      ...opponentCapturedNext.gwang, ...opponentCapturedNext.yeol, ...opponentCapturedNext.tti, ...opponentCapturedNext.pi,
+    ].map(c => c.id));
+    const remainder = shuffleDeck(HWATU_DECK.filter(c => !usedIds.has(c.id)));
+    const opponentHandNext = remainder.slice(0, userHandNext.length);
+    const deckNext = remainder.slice(userHandNext.length);
+
+    setUserHand(userHandNext);
+    setFloorCards(floorNext);
+    setUserCaptured(userCapturedNext);
+    setOpponentCaptured(opponentCapturedNext);
+    setOpponentHand(opponentHandNext);
+    setOpponentHand2([]);
+    setOpponent2Captured(EMPTY_CAPTURED);
+    setRemainingDeck(deckNext);
+    setLastDeckCard(null);
+    setSelectedCardId(null);
+    setActionLog(logNext);
   };
 
   // 바닥패를 위/아래 두 줄로 나눠 덱을 가운데 두고 감싸는 구도 (실제 게임 클라이언트의 대칭 배치 참고)
@@ -748,197 +922,8 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
 
   return (
     <div className={isFullscreen ? 'fixed inset-0 z-[200] bg-[#0F1712] p-2 sm:p-3 overflow-y-auto space-y-3' : 'space-y-5 pb-10'}>
-      {/* Control Header: Mode, Preset, Toggles, Random Button (전체화면에서는 공간 확보를 위해 숨김) */}
-      {!isFullscreen && (
-      <div className="bg-white border border-[#DDD4C0] rounded-xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        {/* Left: Mode & Rules Selection */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* 1) 인원 선택 */}
-          <div className="flex items-center gap-1 p-1 bg-[#FAF6EC] border border-[#E5DFCE] rounded-lg">
-            <button
-              type="button"
-              onClick={() => handleModeChange('matgo')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                gameMode === 'matgo'
-                  ? 'bg-[#2B3F5C] text-white shadow-xs'
-                  : 'text-[#666] hover:text-[#111]'
-              }`}
-            >
-              맞고 (2인)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleModeChange('gostop3')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                gameMode === 'gostop3'
-                  ? 'bg-[#2B3F5C] text-white shadow-xs'
-                  : 'text-[#666] hover:text-[#111]'
-              }`}
-            >
-              3인 고스톱
-            </button>
-          </div>
-
-          {/* Rules Preset Toggle */}
-          <div className="flex items-center gap-1 p-1 bg-[#FAF6EC] border border-[#E5DFCE] rounded-lg text-xs">
-            <button
-              type="button"
-              onClick={() => handleRuleChange('standard')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                rulePreset === 'standard'
-                  ? 'bg-[#A9791C] text-white shadow-xs'
-                  : 'text-[#666] hover:text-[#111]'
-              }`}
-            >
-              국룰 (표준)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleRuleChange('basic')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                rulePreset === 'basic'
-                  ? 'bg-[#A9791C] text-white shadow-xs'
-                  : 'text-[#666] hover:text-[#111]'
-              }`}
-            >
-              기본 규칙
-            </button>
-          </div>
-        </div>
-
-        {/* Right: Visibility Toggles & Random Situation Button */}
-        <div className="flex flex-wrap items-center gap-2 relative">
-          {/* Show/Hide Opponent Hands Toggle */}
-          <div className="relative group">
-            <button
-              type="button"
-              onClick={() => {
-                playClick();
-                setShowOpponentCards(prev => !prev);
-              }}
-              title="'보이기'로 설정하면, 보이는 패를 반영하여 AI가 낼 패를 선정합니다."
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                showOpponentCards
-                  ? 'bg-[#3B6255] text-white border-[#3B6255]'
-                  : 'bg-white text-[#555] border-[#DDD4C0] hover:border-[#3B6255]'
-              }`}
-            >
-              <span>상대패:</span>
-              <span>{showOpponentCards ? '보이기' : '안보기(실전)'}</span>
-            </button>
-            <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-30 w-56 px-2.5 py-1.5 rounded-md bg-[#1F1F1F] text-white text-[10.5px] leading-snug text-center opacity-0 group-hover:opacity-100 transition-opacity">
-              보기 설정 시, 보이는 패를 반영하여 낼 패를 선정합니다.
-            </div>
-          </div>
-
-          {/* Show/Hide Deck Top (뒤집기 패) Toggle */}
-          <div className="relative group">
-            <button
-              type="button"
-              onClick={() => {
-                playClick();
-                setShowDeckTopCard(prev => !prev);
-              }}
-              title="'보이기'로 설정하면, 보이는 패를 반영하여 AI가 낼 패를 선정합니다."
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                showDeckTopCard
-                  ? 'bg-[#3B6255] text-white border-[#3B6255]'
-                  : 'bg-white text-[#555] border-[#DDD4C0] hover:border-[#3B6255]'
-              }`}
-            >
-              <span>뒤집기 패:</span>
-              <span>{showDeckTopCard ? '보이기' : '안보기(실전)'}</span>
-            </button>
-            <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-30 w-56 px-2.5 py-1.5 rounded-md bg-[#1F1F1F] text-white text-[10.5px] leading-snug text-center opacity-0 group-hover:opacity-100 transition-opacity">
-              보기 설정 시, 보이는 패를 반영하여 낼 패를 선정합니다.
-            </div>
-          </div>
-
-          {/* 설정을 바꾸는 순간에도 같은 안내를 눈에 띄게 보여준다 */}
-          {(showOpponentCards || showDeckTopCard) && (
-            <span className="text-[11px] font-medium text-[#3B6255] bg-[#3B6255]/10 border border-[#3B6255]/30 px-2.5 py-1 rounded-full whitespace-nowrap">
-              💡 보기 설정 시, 보이는 패를 반영하여 낼 패를 선정합니다
-            </span>
-          )}
-
-          {/* 수동 / 자동 모드 전환 */}
-          <div className="flex items-center gap-1 p-1 bg-[#FAF6EC] border border-[#E5DFCE] rounded-lg text-xs" title="자동 모드에서는 카드를 직접 못 누르고, 'AI 추천대로 진행' 버튼으로만 다음 수를 둘 수 있습니다.">
-            <button
-              type="button"
-              onClick={() => { if (autoMode) { playClick(); setAutoMode(false); } }}
-              className={`px-2.5 py-1 font-semibold rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                !autoMode ? 'bg-[#2B3F5C] text-white shadow-xs' : 'text-[#666] hover:text-[#111]'
-              }`}
-            >
-              🖐️ 수동
-            </button>
-            <button
-              type="button"
-              onClick={() => { if (!autoMode) { playClick(); setAutoMode(true); } }}
-              className={`px-2.5 py-1 font-semibold rounded-md transition-colors whitespace-nowrap cursor-pointer ${
-                autoMode ? 'bg-[#A9791C] text-white shadow-xs' : 'text-[#666] hover:text-[#111]'
-              }`}
-            >
-              🤖 자동
-            </button>
-          </div>
-
-          {/* "패 랜덤 변경" button */}
-          <button
-            type="button"
-            onClick={() => {
-              playClick();
-              generateNewSituation(gameMode);
-            }}
-            className="px-4 py-1.5 text-xs font-bold rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white shadow-xs transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-          >
-            <span>🔄 새 대국 시작</span>
-          </button>
-
-          {/* 전체화면 전환 */}
-          <button
-            type="button"
-            onClick={() => {
-              playClick();
-              setIsFullscreen(true);
-            }}
-            className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#2B3F5C] hover:bg-[#1E2E44] text-white shadow-xs transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-          >
-            <span>⛶ 전체화면</span>
-          </button>
-        </div>
-      </div>
-      )}
-
-      {/* Quick Scenario Preset Pills (전체화면에서는 숨김) */}
-      {!isFullscreen && (
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs text-[#7A7466]">
-        <span className="shrink-0 font-medium">실전 특수 상황:</span>
-        <button
-          type="button"
-          onClick={() => loadScenario('godori')}
-          className="px-2.5 py-1 rounded-md bg-white border border-[#DDD4C0] hover:border-[#A9791C] text-[#222] whitespace-nowrap transition-colors cursor-pointer"
-        >
-          🐦 상대 고도리 위기 차단
-        </button>
-        <button
-          type="button"
-          onClick={() => loadScenario('hongdan')}
-          className="px-2.5 py-1 rounded-md bg-white border border-[#DDD4C0] hover:border-[#A9791C] text-[#222] whitespace-nowrap transition-colors cursor-pointer"
-        >
-          🔴 내 홍단 3점 완성
-        </button>
-        <button
-          type="button"
-          onClick={() => loadScenario('puck')}
-          className="px-2.5 py-1 rounded-md bg-white border border-[#DDD4C0] hover:border-[#A9791C] text-[#222] whitespace-nowrap transition-colors cursor-pointer"
-        >
-          💥 3장 겹친 뻑 먹기 찬스
-        </button>
-      </div>
-      )}
-
-      {/* Main Playing Table Arena — 실제 게임 클라이언트 구도(코너 아바타 + 대칭 바닥패) 참고, 한 화면에 다 들어오도록 컴팩트 레이아웃 */}
+      {/* Main Playing Table Arena — 실제 게임 클라이언트 구도(코너 아바타 + 대칭 바닥패) 참고, 한 화면에 다 들어오도록 컴팩트 레이아웃.
+          모든 설정은 테이블 안의 ⚙️ 설정 아이콘을 눌러 여는 패널에서 관리한다. */}
       <div
         className="bg-[#2D4536] border-4 border-[#3D2817] rounded-2xl shadow-xl text-white relative overflow-hidden flex flex-col"
         style={{
@@ -974,13 +959,29 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             >
               🔍 이유 보기
             </button>
-            {isFullscreen && (
+            <button
+              type="button"
+              onClick={() => { playClick(); setIsSettingsOpen(true); }}
+              aria-label="설정 열기"
+              className="shrink-0 w-7 h-7 rounded-md bg-black/40 hover:bg-black/60 border border-white/20 text-white text-[12px] font-bold cursor-pointer flex items-center justify-center"
+            >
+              ⚙️
+            </button>
+            {isFullscreen ? (
               <button
                 type="button"
                 onClick={() => { playClick(); setIsFullscreen(false); }}
                 className="shrink-0 px-2.5 py-1 rounded-md bg-black/40 hover:bg-black/60 border border-white/20 text-white text-[10.5px] font-bold cursor-pointer whitespace-nowrap"
               >
                 ⤢ 전체화면 종료
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { playClick(); setIsFullscreen(true); }}
+                className="shrink-0 px-2.5 py-1 rounded-md bg-black/40 hover:bg-black/60 border border-white/20 text-white text-[10.5px] font-bold cursor-pointer whitespace-nowrap"
+              >
+                ⛶ 전체화면
               </button>
             )}
           </div>
@@ -1204,6 +1205,23 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         >
           🏆 {gameResult.winner === 'draw' ? '무승부' : `${PLAYER_LABEL[gameResult.winner]} 승리`} · 결과 다시 보기
         </button>
+      )}
+
+      {/* 설정 패널 — 게임 화면 안의 ⚙️ 아이콘으로만 열림 */}
+      {isSettingsOpen && (
+        <SettingsModal
+          gameMode={gameMode}
+          onModeChange={mode => { handleModeChange(mode); setIsSettingsOpen(false); }}
+          showOpponentCards={showOpponentCards}
+          onToggleOpponentCards={() => { playClick(); setShowOpponentCards(prev => !prev); }}
+          showDeckTopCard={showDeckTopCard}
+          onToggleDeckTopCard={() => { playClick(); setShowDeckTopCard(prev => !prev); }}
+          autoMode={autoMode}
+          onSetAutoMode={v => { playClick(); setAutoMode(v); }}
+          onNewGame={() => { playClick(); generateNewSituation(gameMode); setIsSettingsOpen(false); }}
+          onLoadScenario={type => { loadScenario(type); setIsSettingsOpen(false); }}
+          onClose={() => setIsSettingsOpen(false)}
+        />
       )}
     </div>
   );
