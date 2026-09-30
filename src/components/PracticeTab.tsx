@@ -124,13 +124,22 @@ const CategoryPile: React.FC<{ cards: HwatuCard[] }> = ({ cards }) => {
 
 // 상대가 먹은 패(공개 정보)를 종류별(광/열끗/띠/피)로 나눠, 각 종류 안에서만 겹쳐 쌓아 보여준다.
 // 실제 상용 고스톱 클라이언트처럼 종류가 한눈에 구분되면서도 공간은 아낄 수 있다.
+// 2행(광·열끗 / 띠·피)으로 나눠 종류 구분을 더 뚜렷하게 하고, 한 행의 가로 폭도 줄인다.
 // 상대1은 왼쪽, 상대2는 오른쪽으로 정렬한다.
 const CapturedStack: React.FC<{ captured: CapturedSummary; align?: 'left' | 'right' }> = ({ captured, align = 'left' }) => {
-  const groups = [captured.gwang, captured.yeol, captured.tti, captured.pi];
-  if (groups.every(g => g.length === 0)) return null;
+  const rows = [
+    [captured.gwang, captured.yeol],
+    [captured.tti, captured.pi],
+  ];
+  if (rows.every(row => row.every(g => g.length === 0))) return null;
+  const rowJustify = align === 'right' ? 'justify-end' : 'justify-start';
   return (
-    <div className={`flex items-end gap-1.5 p-1 bg-black/20 rounded-lg shrink-0 self-stretch ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
-      {groups.map((g, i) => <CategoryPile key={i} cards={g} />)}
+    <div className={`flex flex-col gap-1 p-1 bg-black/20 rounded-lg shrink-0 self-stretch ${align === 'right' ? 'items-end' : 'items-start'}`}>
+      {rows.map((row, rowIdx) => (
+        <div key={rowIdx} className={`flex items-end gap-1.5 ${rowJustify}`}>
+          {row.map((g, i) => <CategoryPile key={i} cards={g} />)}
+        </div>
+      ))}
     </div>
   );
 };
@@ -940,61 +949,59 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
 
         {/* Opponent Area — 코너 아바타 배지 구도 (상대1/상대2 색상·글자로 확실히 구분).
             상대1/상대2 칸을 flex-1 + min-w-0 + overflow-hidden으로 폭을 균등 분배해,
-            한쪽 먹은 패가 많아져도 다른 쪽을 밀어내거나 화면 밖으로 잘리지 않게 한다. */}
+            한쪽 먹은 패가 많아져도 다른 쪽을 밀어내거나 화면 밖으로 잘리지 않게 한다.
+            안 낸 패(손패)는 배지 옆에 나란히 붙여 별도의 줄을 쓰지 않도록 해 세로 공간을 아낀다. */}
         <div className="relative z-10 shrink-0 px-3.5 pt-2 space-y-1">
           <div className="flex items-start gap-2">
             <div className="flex-1 min-w-0 overflow-hidden flex flex-col items-start gap-1">
-              <PlayerBadge
-                label="상대1"
-                sub={showOpponentCards ? '패 공개' : '비공개'}
-                avatarText="1"
-                colorClass="bg-[#9C3131]"
-                active={currentTurn === 'opp1' && !gameResult}
-              />
+              <div className="flex items-center gap-1.5 w-full">
+                <PlayerBadge
+                  label="상대1"
+                  sub={showOpponentCards ? '패 공개' : '비공개'}
+                  avatarText="1"
+                  colorClass="bg-[#9C3131]"
+                  active={currentTurn === 'opp1' && !gameResult}
+                />
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <HandStack
+                    cards={opponentHand}
+                    isHidden={!showOpponentCards}
+                    colorClass="bg-[#9C3131]"
+                    borderClass="border-[#7D2626]"
+                    align="left"
+                  />
+                </div>
+              </div>
               <CapturedStack captured={opponentCaptured} align="left" />
             </div>
 
             {gameMode === 'gostop3' ? (
               <div className="flex-1 min-w-0 overflow-hidden flex flex-col items-end gap-1">
-                <PlayerBadge
-                  label="상대2"
-                  sub={showOpponentCards ? '패 공개' : '비공개'}
-                  avatarText="2"
-                  colorClass="bg-[#2B5F8A]"
-                  align="right"
-                  active={currentTurn === 'opp2' && !gameResult}
-                />
+                <div className="flex items-center gap-1.5 w-full justify-end">
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <HandStack
+                      cards={opponentHand2}
+                      isHidden={!showOpponentCards}
+                      colorClass="bg-[#2B5F8A]"
+                      borderClass="border-[#1E4A6B]"
+                      align="right"
+                    />
+                  </div>
+                  <PlayerBadge
+                    label="상대2"
+                    sub={showOpponentCards ? '패 공개' : '비공개'}
+                    avatarText="2"
+                    colorClass="bg-[#2B5F8A]"
+                    align="right"
+                    active={currentTurn === 'opp2' && !gameResult}
+                  />
+                </div>
                 <CapturedStack captured={opponent2Captured} align="right" />
               </div>
             ) : (
               <div className="flex flex-col items-end gap-0.5 bg-black/25 border border-white/10 rounded-xl px-2.5 py-1.5 text-right shrink-0">
                 <span className="text-[9px] text-[#A5C7B5] whitespace-nowrap">덱 남은 패</span>
                 <span className="text-[13px] font-black text-white tabular-nums">{remainingDeck.length}장</span>
-              </div>
-            )}
-          </div>
-
-          {/* 안 낸 패(손패) — 상대1/상대2를 같은 행, 같은 세로 위치에 나란히 배치해 공간을 최적화 */}
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <HandStack
-                cards={opponentHand}
-                isHidden={!showOpponentCards}
-                colorClass="bg-[#9C3131]"
-                borderClass="border-[#7D2626]"
-                align="left"
-              />
-            </div>
-
-            {gameMode === 'gostop3' && (
-              <div className="flex-1 min-w-0 overflow-hidden">
-                <HandStack
-                  cards={opponentHand2}
-                  isHidden={!showOpponentCards}
-                  colorClass="bg-[#2B5F8A]"
-                  borderClass="border-[#1E4A6B]"
-                  align="right"
-                />
               </div>
             )}
           </div>
