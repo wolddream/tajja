@@ -34,7 +34,7 @@ export const RulesTab: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2.5">
           {gwangCards.map(card => (
             <div key={card.id} className="flex flex-col items-center gap-1">
-              <CardView card={card} size="sm" disabled hideInfo />
+              <CardView card={card} size="md" disabled hideInfo />
               <span className="text-[10px] text-[#7A7466]">{card.month}월{card.subType === 'bi_gwang' ? ' (비광)' : ''}</span>
             </div>
           ))}
@@ -53,7 +53,7 @@ export const RulesTab: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2.5">
           {godoriCards.map(card => (
             <div key={card.id} className="flex flex-col items-center gap-1">
-              <CardView card={card} size="sm" disabled hideInfo />
+              <CardView card={card} size="md" disabled hideInfo />
               <span className="text-[10px] text-[#7A7466]">{card.month}월 {card.plant}</span>
             </div>
           ))}
@@ -72,7 +72,7 @@ export const RulesTab: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2.5">
           {danCards.map(card => (
             <div key={card.id} className="flex flex-col items-center gap-1">
-              <CardView card={card} size="sm" disabled hideInfo />
+              <CardView card={card} size="md" disabled hideInfo />
               <span className="text-[10px] text-[#7A7466]">{card.label}</span>
             </div>
           ))}
@@ -91,7 +91,7 @@ export const RulesTab: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2.5">
           {piCards.map(card => (
             <div key={card.id} className="flex flex-col items-center gap-1">
-              <CardView card={card} size="sm" disabled hideInfo />
+              <CardView card={card} size="md" disabled hideInfo />
               <span className="text-[10px] text-[#7A7466]">{card.label}</span>
             </div>
           ))}
@@ -116,7 +116,7 @@ export const RulesTab: React.FC = () => {
       <div className="bg-white border border-[#DDD4C0] rounded-2xl p-5 shadow-xs space-y-3">
         <h3 className="font-bold text-sm text-[#2B3F5C] flex items-center gap-1.5">📖 화투의 역사와 유래</h3>
         <div className="flex items-center gap-2.5">
-          <CardView card={findCard('m12_gwang')} size="sm" disabled hideInfo />
+          <CardView card={findCard('m12_gwang')} size="md" disabled hideInfo />
           <p className="text-xs text-[#444] leading-relaxed">
             화투(花鬪, "꽃으로 싸우다")는 일본의 전통 카드놀이 <strong>하나후다(花札)</strong>에서 비롯된 것으로 알려져 있습니다. 하나후다 자체는 16세기 포르투갈 상인들이 일본에 전한 서양식 카드 놀이가 일본식으로 변형되며 만들어졌고, 1월부터 12월까지 각 달을 상징하는 꽃·나무·동물 그림으로 구성된 48장의 패로 정착했습니다.
           </p>
