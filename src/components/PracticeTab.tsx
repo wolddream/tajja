@@ -70,13 +70,14 @@ const HandStack: React.FC<{
   }
   // 카드를 너무 많이 겹쳐 쌓으면 칸 밖으로 잘려 나온 카드가 반쪽만 보이는 지저분한 모습이 되므로,
   // 보여줄 카드 수를 제한하고 정확한 장수는 옆의 숫자 라벨로만 전달한다.
-  const MAX_SHOWN = 6;
+  // 겹침 폭도 기존(-23px)보다 약 20% 줄여, 어떤 패인지 더 잘 구분되게 한다.
+  const MAX_SHOWN = 5;
   const shownCards = cards.slice(0, MAX_SHOWN);
   const countLabel = <span className="text-[10px] font-bold text-white/70 tabular-nums shrink-0">{cards.length}장</span>;
   const stack = (
     <div className="flex">
       {shownCards.map((card, i) => (
-        <div key={card.id} className="shrink-0" style={{ marginLeft: i === 0 ? 0 : '-23px', zIndex: i }}>
+        <div key={card.id} className="shrink-0" style={{ marginLeft: i === 0 ? 0 : '-18px', zIndex: i }}>
           {isHidden ? (
             <div className={`w-8 h-12 rounded-sm ${colorClass} border ${borderClass} shadow-sm flex items-center justify-center`}>
               <div className="w-3.5 h-3.5 rounded-full border border-white/40 flex items-center justify-center text-[7px] text-white/70 font-serif">
@@ -111,12 +112,13 @@ const HandStack: React.FC<{
 const CategoryPile: React.FC<{ cards: HwatuCard[] }> = ({ cards }) => {
   if (cards.length === 0) return null;
   // 겹쳐 쌓을 카드 수를 제한해, 칸 밖으로 반쪽만 잘려 보이는 카드가 생기지 않게 한다.
+  // 겹침 폭도 기존(-23px)보다 약 20% 줄여, 어떤 패를 먹었는지 더 잘 구분되게 한다.
   const MAX_SHOWN = 4;
   const shownCards = cards.slice(0, MAX_SHOWN);
   return (
     <div className="relative flex shrink-0">
       {shownCards.map((card, idx) => (
-        <div key={`${card.id}-${idx}`} className="shrink-0" style={{ marginLeft: idx === 0 ? 0 : '-23px', zIndex: idx }}>
+        <div key={`${card.id}-${idx}`} className="shrink-0" style={{ marginLeft: idx === 0 ? 0 : '-18px', zIndex: idx }}>
           <CardView card={card} size="xs" disabled={true} hideInfo={true} fullOpacity noBorder />
         </div>
       ))}
