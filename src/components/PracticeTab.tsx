@@ -310,8 +310,6 @@ const SettingsModal: React.FC<{
   onToggleOpponentCards: () => void;
   showDeckTopCard: boolean;
   onToggleDeckTopCard: () => void;
-  autoMode: boolean;
-  onSetAutoMode: (v: boolean) => void;
   onNewGame: () => void;
   onLoadScenario: (type: 'godori' | 'hongdan' | 'puck') => void;
   onClose: () => void;
@@ -324,8 +322,6 @@ const SettingsModal: React.FC<{
   onToggleOpponentCards,
   showDeckTopCard,
   onToggleDeckTopCard,
-  autoMode,
-  onSetAutoMode,
   onNewGame,
   onLoadScenario,
   onClose,
@@ -391,30 +387,6 @@ const SettingsModal: React.FC<{
             }`}
           >
             뒤집기 패: {showDeckTopCard ? '보이기' : '안보기(실전)'}
-          </button>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <div className="text-[11px] font-bold text-[#7A7466]">진행 방식 (자동 모드는 카드를 직접 못 누르고, 'AI 추천대로 진행' 버튼으로만 다음 수를 둡니다)</div>
-        <div className="flex items-center gap-1 p-1 bg-white border border-[#E5DFCE] rounded-lg">
-          <button
-            type="button"
-            onClick={() => onSetAutoMode(false)}
-            className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-              !autoMode ? 'bg-[#2B3F5C] text-white shadow-xs' : 'text-[#666] hover:text-[#111]'
-            }`}
-          >
-            🖐️ 수동
-          </button>
-          <button
-            type="button"
-            onClick={() => onSetAutoMode(true)}
-            className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-              autoMode ? 'bg-[#A9791C] text-white shadow-xs' : 'text-[#666] hover:text-[#111]'
-            }`}
-          >
-            🤖 자동
           </button>
         </div>
       </div>
@@ -1261,6 +1233,20 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           </button>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* 진행 방식(수동/자동) — 설정 패널에 있던 것을 게임 상단으로 옮겨, 플레이 중에도
+                언제든 한 번 탭으로 바로 전환할 수 있게 한다. */}
+            <button
+              type="button"
+              onClick={() => { playClick(); setAutoMode(prev => !prev); }}
+              aria-label={autoMode ? '자동 모드 (눌러서 수동으로 전환)' : '수동 모드 (눌러서 자동으로 전환)'}
+              className={`shrink-0 px-2.5 py-1 rounded-md text-[10.5px] font-bold cursor-pointer whitespace-nowrap border ${
+                autoMode
+                  ? 'bg-[#A9791C] hover:bg-[#8F6516] border-[#A9791C] text-white'
+                  : 'bg-black/40 hover:bg-black/60 border-white/20 text-white'
+              }`}
+            >
+              {autoMode ? '🤖 자동' : '🖐️ 수동'}
+            </button>
             <button
               type="button"
               onClick={handleOpenReason}
@@ -1524,8 +1510,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           onToggleOpponentCards={() => { playClick(); setShowOpponentCards(prev => !prev); }}
           showDeckTopCard={showDeckTopCard}
           onToggleDeckTopCard={() => { playClick(); setShowDeckTopCard(prev => !prev); }}
-          autoMode={autoMode}
-          onSetAutoMode={v => { playClick(); setAutoMode(v); }}
           onNewGame={() => { playClick(); generateNewSituation(gameMode); setIsSettingsOpen(false); }}
           onLoadScenario={type => { loadScenario(type); setIsSettingsOpen(false); }}
           onClose={() => setIsSettingsOpen(false)}
