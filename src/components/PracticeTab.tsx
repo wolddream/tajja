@@ -231,8 +231,9 @@ const CapturedStack: React.FC<{ captured: CapturedSummary; align?: 'left' | 'rig
     return () => ro.disconnect();
   }, []);
 
-  // 패를 하나도 안 먹었을 때도 2행 자리를 처음부터 잡아둬서, 첫 패를 먹는 순간
-  // 이 영역이 갑자기 생겨나며 화면 전체가 아래로 밀리는 레이아웃 흔들림을 없앤다.
+  // 아직 하나도 못 먹은 칸은 높이를 비워 공간을 내주고, 그 칸에 처음 패가 들어오는 순간에만
+  // min-h-[3rem]으로 늘어난다 — 게임 초반 빈 획득패 칸이 쓸데없이 2행치 공간을 차지해
+  // 바닥패·내 손패 등 아래 영역을 압박하던 문제를 줄인다(그 대신 첫 획득 때 약간의 높이 변화는 감수).
   const rowJustify = align === 'right' ? 'justify-end' : 'justify-start';
   const ROW_GAP = 6; // gap-1.5
   const CONTAINER_PADDING = 8; // p-1 (좌우 각 4px)
@@ -242,8 +243,12 @@ const CapturedStack: React.FC<{ captured: CapturedSummary; align?: 'left' | 'rig
         const secondMaxWidth = rowWidth != null
           ? Math.max(PILE_CARD_W, rowWidth - CONTAINER_PADDING - pileNaturalWidth(first.length) - ROW_GAP)
           : undefined;
+        const rowHasCards = first.length > 0 || second.length > 0;
         return (
-          <div key={rowIdx} className={`flex items-end gap-1.5 min-h-[3rem] w-full ${rowJustify}`}>
+          <div
+            key={rowIdx}
+            className={`flex items-end gap-1.5 w-full transition-[min-height] duration-200 ${rowHasCards ? 'min-h-[3rem]' : 'min-h-0'} ${rowJustify}`}
+          >
             <CategoryPile cards={first} />
             <CategoryPile cards={second} maxWidth={secondMaxWidth} />
           </div>
