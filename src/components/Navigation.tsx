@@ -210,15 +210,18 @@ export const Navigation: React.FC<NavigationProps> = ({
         </div>
       </nav>
 
-      {/* 하단 탭바를 꺼내 보는 투명 버튼 — 화면 왼쪽 아래 가장자리에 고정, 평소엔 눈에 안 띄게
-          완전 투명으로 둬서 게임 화면을 가리지 않다가, 누르면 탭바가 슬라이드로 나타난다. */}
+      {/* 하단 탭바를 꺼내 보는 버튼 — 화면 왼쪽 아래 가장자리에 고정, 배경은 투명해 게임 화면을
+          가리지 않는다. 완전히 안 보이면 사용자가 찾지 못한다는 피드백을 받아, 탭 위치를 알 수
+          있도록 아주 옅은 손잡이 모양 힌트만 하나 남겨둔다(두드러지지 않게 opacity를 낮게). */}
       {hideBottomBar && (
         <button
           type="button"
           onClick={() => { playClick(); setBottomBarOpen(prev => !prev); }}
           aria-label={bottomBarOpen ? '하단 메뉴 숨기기' : '하단 메뉴 보기'}
-          className="fixed bottom-0 left-0 z-50 w-4 h-16 bg-transparent md:hidden cursor-pointer"
-        />
+          className="fixed bottom-0 left-0 z-50 w-6 h-20 bg-transparent md:hidden cursor-pointer flex items-center justify-center"
+        >
+          <span className="w-[5px] h-9 rounded-full bg-[#F3D999]/35" />
+        </button>
       )}
     </>
   );
