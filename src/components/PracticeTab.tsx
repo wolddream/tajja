@@ -1563,13 +1563,14 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               )}
             </div>
 
-            {/* 바닥패는 폭에 따라 줄마다 장수가 들쭉날쭉 바뀌는 flex-wrap 대신, 항상 2열(2칸) 그리드로
-                고정해 카드가 세로로 쌓이게 한다 — 좁은 화면에서도 한 줄에 몇 장이 들어갈지 흔들리지
-                않고 항상 가지런한 2열 구조를 유지한다. 덱은 그 아래 별도 줄(카드 줄과 안 겹침). */}
+            {/* 바닥패는 폭에 따라 줄마다 장수가 들쭉날쭉 바뀌는 flex-wrap 대신 그리드로 가지런히
+                정렬한다. 고정 2열 대신 auto-fill로 가로 폭이 허용하는 만큼 카드를 최대한 많이
+                한 줄에 채워, 줄 수(= 세로 공간)를 꼭 필요한 만큼만 쓰도록 한다(화면이 넓으면
+                한 줄에 더 많이, 좁으면 자동으로 줄어든다 — 어느 폭에서도 줄은 항상 가지런함). */}
             <div className="w-full flex flex-col items-center gap-1">
-              <div className="grid grid-cols-2 gap-1 justify-items-center w-fit mx-auto">
+              <div className="grid grid-cols-[repeat(auto-fill,32px)] gap-1 justify-center w-full">
                 {floorCards.length === 0 ? (
-                  <div className="col-span-2 text-[10.5px] text-white/60 py-1">바닥이 비었습니다 (싹쓸이 상황!)</div>
+                  <div className="col-span-full text-[10.5px] text-white/60 py-1">바닥이 비었습니다 (싹쓸이 상황!)</div>
                 ) : (
                   floorCards.map(card => (
                     <CardView key={card.id} card={card} size="xs" disabled={true} />
