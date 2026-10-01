@@ -1305,10 +1305,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     setActionLog(logNext);
   };
 
-  // 바닥패를 위/아래 두 줄로 나눠 덱을 가운데 두고 감싸는 구도 (실제 게임 클라이언트의 대칭 배치 참고)
-  const floorTop = floorCards.slice(0, Math.ceil(floorCards.length / 2));
-  const floorBottom = floorCards.slice(Math.ceil(floorCards.length / 2));
-
   const userCapturedTotal =
     userCaptured.gwang.length + userCaptured.yeol.length + userCaptured.tti.length + userCaptured.pi.length;
 
@@ -1563,24 +1559,18 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               )}
             </div>
 
-            {/* 바닥패 두 줄은 칸 전체 폭을 그대로 쓰고, 덱은 그 아래 별도 줄로 뺐다. 덱을 바닥패와
-                같은 줄에 나란히 두면(가로로 폭을 나눠 가지면) 좁은 화면에서 한 줄에 4장이 못 들어가
-                3장+1장으로 들쭉날쭉 줄바꿈되는 문제가 있어, 세로로 쌓아 바닥패 줄은 항상 온전한
-                폭을 쓰게 한다(덱은 항상 고정된 자리라 카드 줄과 겹치지도 않는다). */}
+            {/* 바닥패는 폭에 따라 줄마다 장수가 들쭉날쭉 바뀌는 flex-wrap 대신, 항상 2열(2칸) 그리드로
+                고정해 카드가 세로로 쌓이게 한다 — 좁은 화면에서도 한 줄에 몇 장이 들어갈지 흔들리지
+                않고 항상 가지런한 2열 구조를 유지한다. 덱은 그 아래 별도 줄(카드 줄과 안 겹침). */}
             <div className="w-full flex flex-col items-center gap-1">
-              <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem] w-full">
-                {floorTop.map(card => (
-                  <CardView key={card.id} card={card} size="xs" disabled={true} />
-                ))}
-              </div>
-              <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem] w-full">
-                {floorBottom.length > 0 ? (
-                  floorBottom.map(card => (
+              <div className="grid grid-cols-2 gap-1 justify-items-center w-fit mx-auto">
+                {floorCards.length === 0 ? (
+                  <div className="col-span-2 text-[10.5px] text-white/60 py-1">바닥이 비었습니다 (싹쓸이 상황!)</div>
+                ) : (
+                  floorCards.map(card => (
                     <CardView key={card.id} card={card} size="xs" disabled={true} />
                   ))
-                ) : floorTop.length === 0 ? (
-                  <div className="text-[10.5px] text-white/60 py-1">바닥이 비었습니다 (싹쓸이 상황!)</div>
-                ) : null}
+                )}
               </div>
               <div className="shrink-0">
                 {showDeckTopCard && remainingDeck.length > 0 ? (
