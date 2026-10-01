@@ -17,6 +17,8 @@ interface PracticeTabProps {
   currentUser: AuthUser | null;
   onOpenProfile: () => void;
   onLogout: () => void;
+  // 로그인 직후 첫 진입에서는 바로 전체화면으로 시작한다(최초 마운트 시 1회만 반영되는 초기값).
+  startFullscreen?: boolean;
 }
 
 type PlayerKey = 'user' | 'opp1' | 'opp2';
@@ -611,6 +613,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   currentUser,
   onOpenProfile,
   onLogout,
+  startFullscreen = false,
 }) => {
   // 경험치 게이지 퍼센트 (Navigation.tsx와 동일한 계산식)
   const currentReq = LEVEL_REQUIREMENTS.find(r => r.level === userLevel) || LEVEL_REQUIREMENTS[0];
@@ -632,8 +635,9 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [showDeckTopCard, setShowDeckTopCard] = useState<boolean>(false);
   // 수동(직접 카드 클릭) / 자동(AI 추천패로 알아서 진행) 모드
   const [autoMode, setAutoMode] = useState<boolean>(false);
-  // 전체화면 모드 (실제 게임 클라이언트처럼 화면을 꽉 채워서 플레이)
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  // 전체화면 모드 (실제 게임 클라이언트처럼 화면을 꽉 채워서 플레이). 로그인 직후 첫 진입이면
+  // startFullscreen prop으로 처음부터 켜진 상태로 시작한다(최초 렌더 시 1회만 반영되는 초기값).
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(startFullscreen);
   // 전체화면 전환이 실제로 끝난 시점의 뷰포트 높이(px)를 JS로 직접 측정해둔 값.
   // 일부 브라우저(특히 삼성 인터넷)는 requestFullscreen() 호출 직후 CSS의 100dvh 값이
   // 주소창이 사라지는 애니메이션이 끝나기 전 값으로 한 번 굳어버려, 화면이 실제보다 길게

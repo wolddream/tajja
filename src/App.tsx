@@ -27,6 +27,10 @@ import { LoginGate } from './components/LoginGate';
 export default function App() {
   // Authentication State
   const [authUser, setAuthUser] = useState<AuthUser | null>(loadAuthUser);
+  // 로그인 버튼을 누른 바로 그 순간부터(이미 로그인된 채로 새로고침한 경우는 제외) 연습 화면을
+  // 전체화면으로 띄운다. 페이지를 새로고침해 저장된 로그인 상태로 복귀하는 경우는 사용자 제스처가
+  // 없어 브라우저가 네이티브 전체화면을 어차피 허용하지 않으므로 대상에서 제외한다.
+  const [startFullscreen, setStartFullscreen] = useState(false);
 
   // App Navigation & Core Data
   const [currentTab, setCurrentTab] = useState<TabKey>('practice');
@@ -106,6 +110,14 @@ export default function App() {
   const handleLogin = (user: AuthUser) => {
     setAuthUser(user);
     saveAuthUser(user);
+    setStartFullscreen(true);
+    // 로그인 버튼 클릭이라는 사용자 제스처 안에서 바로 호출해야 브라우저가 전체화면 요청을
+    // 허용한다(비동기 지연 없이 같은 클릭 핸들러 안에서 동기적으로 호출). 지원하지 않거나
+    // 거부되는 기기에서는 조용히 무시되고, 연습 화면 쪽 CSS 전체화면 스타일(startFullscreen)만
+    // 적용돼 시각적으로는 동일하게 꽉 찬 화면으로 보인다.
+    const el = document.documentElement as (HTMLElement & { webkitRequestFullscreen?: () => Promise<void> });
+    const request = el.requestFullscreen?.bind(el) ?? el.webkitRequestFullscreen?.bind(el);
+    request?.()?.catch(() => {});
   };
 
   const handleLogout = () => {
@@ -295,6 +307,7 @@ export default function App() {
             currentUser={authUser}
             onOpenProfile={() => setCurrentTab('profile')}
             onLogout={handleLogout}
+            startFullscreen={startFullscreen}
           />
         )}
 
