@@ -1369,7 +1369,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               <CapturedStack captured={opponentCaptured} align="left" />
             </div>
 
-            {gameMode === 'gostop3' ? (
+            {gameMode === 'gostop3' && (
               <div className="flex-1 min-w-0 overflow-hidden flex flex-col items-end gap-1">
                 <div className="flex items-center gap-1.5 w-full justify-end">
                   <div className="flex-1 min-w-0 overflow-hidden">
@@ -1390,11 +1390,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                   />
                 </div>
                 <CapturedStack captured={opponent2Captured} align="right" />
-              </div>
-            ) : (
-              <div className="flex flex-col items-end gap-0.5 bg-black/25 border border-white/10 rounded-xl px-2.5 py-1.5 text-right shrink-0">
-                <span className="text-[9px] text-[#A5C7B5] whitespace-nowrap">덱 남은 패</span>
-                <span className="text-[13px] font-black text-white tabular-nums">{remainingDeck.length}장</span>
               </div>
             )}
           </div>
