@@ -126,15 +126,36 @@ const HandStack: React.FC<{
   );
 };
 
+// 먹은 패 더미(xs 카드 폭)의 겹침 계산에 쓰는 상수.
+const PILE_CARD_W = 32; // xs 카드 실제 폭(px)
+const PILE_MIN_OVERLAP = 14; // 평소(공간이 넉넉할 때) 겹침 — 어떤 패인지 잘 구분되는 정도
+const PILE_MAX_OVERLAP = 29; // 공간이 모자랄 때 최대로 압축하는 겹침 — 거의 다 겹쳐도 몇 px는 보이게
+
+// cards.length장을 maxWidth(px) 안에 다 넣어야 할 때 필요한 겹침 간격(px)을 계산한다.
+// 평소 간격만으로 이미 들어가면 그대로 두고, 넘치면 겹침을 늘려서라도 폭을 넘지 않게 압축한다.
+const fitPileOverlap = (count: number, maxWidth?: number): number => {
+  if (count <= 1) return 0;
+  if (maxWidth == null) return PILE_MIN_OVERLAP;
+  const naturalWidth = PILE_CARD_W + (count - 1) * (PILE_CARD_W - PILE_MIN_OVERLAP);
+  if (naturalWidth <= maxWidth) return PILE_MIN_OVERLAP;
+  const needed = (count * PILE_CARD_W - maxWidth) / (count - 1);
+  return Math.min(PILE_MAX_OVERLAP, Math.max(PILE_MIN_OVERLAP, needed));
+};
+
+const pileNaturalWidth = (count: number): number =>
+  count === 0 ? 0 : PILE_CARD_W + (count - 1) * (PILE_CARD_W - PILE_MIN_OVERLAP);
+
 // 한 종류(광/열끗/띠/피)의 먹은 패를 살짝 겹쳐 쌓고, 2장 이상이면 우하단에 장수 배지를 붙인다.
 // "나"/"상대" 아바타 배지를 없애고 텍스트로 바꿔 확보한 공간만큼, 먹은 패는 개수 제한 없이
-// 전부 보여준다(겹침 폭도 기존(-23px)보다 약 20% 줄여, 어떤 패를 먹었는지 더 잘 구분되게 한다).
-const CategoryPile: React.FC<{ cards: HwatuCard[] }> = ({ cards }) => {
+// 전부 보여준다. maxWidth가 주어지면 장수가 아무리 늘어도 그 폭을 넘지 않도록 겹침을 자동으로
+// 압축해, 피가 많이 쌓여도 화면 전체 크기가 바뀌지 않게 한다.
+const CategoryPile: React.FC<{ cards: HwatuCard[]; maxWidth?: number }> = ({ cards, maxWidth }) => {
   if (cards.length === 0) return null;
+  const overlap = fitPileOverlap(cards.length, maxWidth);
   return (
     <div className="relative flex shrink-0">
       {cards.map((card, idx) => (
-        <div key={`${card.id}-${idx}`} className="shrink-0" style={{ marginLeft: idx === 0 ? 0 : '-18px', zIndex: idx }}>
+        <div key={`${card.id}-${idx}`} className="shrink-0" style={{ marginLeft: idx === 0 ? 0 : `-${overlap}px`, zIndex: idx }}>
           <CardView card={card} size="xs" disabled={true} hideInfo={true} fullOpacity noBorder />
         </div>
       ))}
@@ -151,21 +172,44 @@ const CategoryPile: React.FC<{ cards: HwatuCard[] }> = ({ cards }) => {
 // 실제 상용 고스톱 클라이언트처럼 종류가 한눈에 구분되면서도 공간은 아낄 수 있다.
 // 2행(광·열끗 / 띠·피)으로 나눠 종류 구분을 더 뚜렷하게 하고, 한 행의 가로 폭도 줄인다.
 // 상대1은 왼쪽, 상대2는 오른쪽으로 정렬한다.
+// 각 행의 실제 렌더링 폭을 측정해, 둘째 더미(열끗/피)가 남는 폭 전체를 쓰도록(빈 공간 최대 활용)
+// 하면서도 그 폭을 넘지 않도록 겹침을 압축한다 — 피가 아무리 많이 쌓여도 화면 크기가 바뀌지 않는다.
 const CapturedStack: React.FC<{ captured: CapturedSummary; align?: 'left' | 'right' }> = ({ captured, align = 'left' }) => {
-  const rows = [
+  const rows: [HwatuCard[], HwatuCard[]][] = [
     [captured.gwang, captured.yeol],
     [captured.tti, captured.pi],
   ];
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [rowWidth, setRowWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setRowWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // 패를 하나도 안 먹었을 때도 2행 자리를 처음부터 잡아둬서, 첫 패를 먹는 순간
   // 이 영역이 갑자기 생겨나며 화면 전체가 아래로 밀리는 레이아웃 흔들림을 없앤다.
   const rowJustify = align === 'right' ? 'justify-end' : 'justify-start';
+  const ROW_GAP = 6; // gap-1.5
+  const CONTAINER_PADDING = 8; // p-1 (좌우 각 4px)
   return (
-    <div className={`flex flex-col gap-1 p-1 bg-black/20 rounded-lg shrink-0 self-stretch ${align === 'right' ? 'items-end' : 'items-start'}`}>
-      {rows.map((row, rowIdx) => (
-        <div key={rowIdx} className={`flex flex-wrap items-end gap-1.5 min-h-[3rem] ${rowJustify}`}>
-          {row.map((g, i) => <CategoryPile key={i} cards={g} />)}
-        </div>
-      ))}
+    <div ref={containerRef} className={`flex flex-col gap-1 p-1 bg-black/20 rounded-lg self-stretch w-full min-w-0 ${align === 'right' ? 'items-end' : 'items-start'}`}>
+      {rows.map(([first, second], rowIdx) => {
+        const secondMaxWidth = rowWidth != null
+          ? Math.max(PILE_CARD_W, rowWidth - CONTAINER_PADDING - pileNaturalWidth(first.length) - ROW_GAP)
+          : undefined;
+        return (
+          <div key={rowIdx} className={`flex items-end gap-1.5 min-h-[3rem] w-full ${rowJustify}`}>
+            <CategoryPile cards={first} />
+            <CategoryPile cards={second} maxWidth={secondMaxWidth} />
+          </div>
+        );
+      })}
     </div>
   );
 };
@@ -1419,7 +1463,9 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               labelColorClass="text-[#9FB6D9]"
               active={currentTurn === 'user' && !gameResult}
             />
-            <CapturedStack captured={userCaptured} align="right" />
+            <div className="flex-1 min-w-0">
+              <CapturedStack captured={userCaptured} align="right" />
+            </div>
           </div>
 
           <div className="flex items-center justify-between text-[10px] text-[#A5C7B5]">
