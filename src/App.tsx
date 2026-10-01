@@ -296,8 +296,10 @@ export default function App() {
         hideBottomBar={isPracticeTab}
       />
 
-      {/* Main Content Area */}
-      <main className={`flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 pb-20 md:pb-10 ${isPracticeTab ? 'pt-2' : 'pt-5'}`}>
+      {/* Main Content Area — 연습(게임) 화면은 좌우 여백과 하단 여백(원래 고정 하단 탭바를 위해
+          비워두던 공간)을 없애 테이블이 화면을 꽉 채우게 한다. 하단 탭바는 연습 화면에서 기본적으로
+          숨겨져 있으므로(Navigation의 hideBottomBar) 그 공간을 더 이상 예약해 둘 필요가 없다. */}
+      <main className={`flex-1 max-w-5xl w-full mx-auto ${isPracticeTab ? 'px-0 pb-0 pt-2' : 'px-4 sm:px-6 pb-20 md:pb-10 pt-5'}`}>
         {currentTab === 'practice' && (
           <PracticeTab
             onIncrementGameCount={handleIncrementGameCount}

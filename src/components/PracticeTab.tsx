@@ -721,10 +721,14 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   }, []);
 
   // 창 모드 전용 높이 측정: 테이블 상단 위치 ~ 하단 고정 탭바(모바일) 사이의 실제 여백을 재서,
-  // min(82vh,720px) 같은 추정값 대신 화면 하단 메뉴 바로 위까지 정확히 채운다.
+  // min(82vh,720px) 같은 추정값 대신 화면 하단까지 정확히 채운다. 전체화면을 껐을 때(isFullscreen이
+  // true→false로 바뀔 때)도 다시 측정하도록 의존성에 넣는다 — 브라우저의 실제 전체화면 종료는
+  // 비동기라(exitFullscreen() 프라미스), document.fullscreenElement만 보고 판단하면 전환 도중
+  // 화면이 실제보다 작게 측정된 값이 그대로 굳어버릴 수 있다. React 상태(isFullscreen)를 기준으로
+  // 판단하면 그런 경합 없이 항상 최신 상태로 다시 잰다.
   useEffect(() => {
+    if (isFullscreen) return;
     const measureWindowed = () => {
-      if (document.fullscreenElement) return;
       const table = tableRef.current;
       if (!table) return;
       const top = table.getBoundingClientRect().top;
@@ -740,13 +744,16 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       setWindowedHeightPx(available > 200 ? available : null);
     };
     measureWindowed();
+    // 전체화면 종료 직후에는 주소창이 다시 나타나는 애니메이션이 끝나기 전이라 한 번 더 재서 보정한다.
+    const settleTimer = window.setTimeout(measureWindowed, 350);
     window.addEventListener('resize', measureWindowed);
     window.visualViewport?.addEventListener('resize', measureWindowed);
     return () => {
+      window.clearTimeout(settleTimer);
       window.removeEventListener('resize', measureWindowed);
       window.visualViewport?.removeEventListener('resize', measureWindowed);
     };
-  }, []);
+  }, [isFullscreen]);
 
   // Board State
   const [userHand, setUserHand] = useState<HwatuCard[]>([]);
