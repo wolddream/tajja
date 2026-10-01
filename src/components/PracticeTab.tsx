@@ -1518,29 +1518,34 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               )}
             </div>
 
-            {/* 위쪽 바닥패 줄 + 덱 (같은 행에 배치해 별도 줄을 없애고 세로 공간을 아낀다) */}
-            <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem]">
-              {floorTop.map(card => (
-                <CardView key={card.id} card={card} size="xs" disabled={true} />
-              ))}
-              {showDeckTopCard && remainingDeck.length > 0 ? (
-                <CardView card={remainingDeck[0]} size="xs" disabled={true} />
-              ) : (
-                <div className="w-8 h-12 shrink-0 bg-[#9C3131] border border-[#FAF6EC]/30 rounded-sm shadow flex items-center justify-center text-white text-[8px] font-bold text-center leading-tight px-0.5">
-                  덱{remainingDeck.length}
+            {/* 바닥패 두 줄 + 덱은 별도 칸으로 분리해, 바닥패 수가 짝수로 꽉 차서 줄바꿈될 때
+                덱 상자가 카드 줄 사이에 끼어 겹쳐 보이던 문제를 막는다(덱은 항상 고정된 자리). */}
+            <div className="w-full flex items-center justify-center gap-1.5">
+              <div className="flex-1 flex flex-col gap-1 min-w-0">
+                <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem]">
+                  {floorTop.map(card => (
+                    <CardView key={card.id} card={card} size="xs" disabled={true} />
+                  ))}
                 </div>
-              )}
-            </div>
-
-            {/* 아래쪽 바닥패 줄 */}
-            <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem]">
-              {floorBottom.length > 0 ? (
-                floorBottom.map(card => (
-                  <CardView key={card.id} card={card} size="xs" disabled={true} />
-                ))
-              ) : floorTop.length === 0 ? (
-                <div className="text-[10.5px] text-white/60 py-1">바닥이 비었습니다 (싹쓸이 상황!)</div>
-              ) : null}
+                <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem]">
+                  {floorBottom.length > 0 ? (
+                    floorBottom.map(card => (
+                      <CardView key={card.id} card={card} size="xs" disabled={true} />
+                    ))
+                  ) : floorTop.length === 0 ? (
+                    <div className="text-[10.5px] text-white/60 py-1">바닥이 비었습니다 (싹쓸이 상황!)</div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="shrink-0">
+                {showDeckTopCard && remainingDeck.length > 0 ? (
+                  <CardView card={remainingDeck[0]} size="xs" disabled={true} />
+                ) : (
+                  <div className="w-8 h-12 shrink-0 bg-[#9C3131] border border-[#FAF6EC]/30 rounded-sm shadow flex items-center justify-center text-white text-[8px] font-bold text-center leading-tight px-0.5">
+                    덱{remainingDeck.length}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
