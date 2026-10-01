@@ -1401,17 +1401,26 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         {/* Center: 핵심 승부처(좌) + Deck/Floor(우) — 별도 줄 대신 바닥패 영역 왼쪽에 이유를 붙이고
             바닥패는 오른쪽으로 시프트해, 손패가 두 줄로 늘어나도 세로 공간이 추가로 늘지 않게 한다. */}
         <div className="relative z-10 my-1.5 mx-3.5 px-2.5 py-1.5 bg-black/25 rounded-xl border border-white/10 flex-1 flex items-stretch gap-2">
-          {/* 핵심 승부처 (이유 보기 1번 항목 내용을 상시 표시) */}
-          <div className="w-[34%] shrink-0 flex flex-col justify-center border-r border-white/10 pr-2">
+          {/* 핵심 승부처 — 이 앱의 핵심 가치이므로 승률·전술 태그를 함께 배지로 노출해
+              "지금 왜 이 패인지"를 한눈에, 더 눈에 띄게 전달한다. */}
+          <div className="w-[38%] shrink-0 flex flex-col justify-center gap-1 border-r border-[#F3D999]/25 pr-2.5">
             <button
               type="button"
               onClick={() => { playClick(); setIsCoreReasonOpen(true); }}
-              className="flex items-center gap-1 mb-0.5 text-[11px] font-bold text-[#F3D999] cursor-pointer w-fit"
+              className="flex items-center gap-1 text-[11.5px] font-black text-[#F3D999] cursor-pointer w-fit"
             >
               <span>💡 핵심 승부처</span>
               <span aria-label="전체 내용 크게 보기" className="shrink-0">🔍</span>
             </button>
-            <div className={`leading-snug text-white/85 ${isCompactLayout ? 'text-[10px] line-clamp-3' : 'text-[11.5px] line-clamp-5'}`}>
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="px-1.5 py-[1px] rounded-full bg-[#9C3131] text-white text-[9.5px] font-black tabular-nums whitespace-nowrap">
+                승률 {bestRecommendation.winRate}%
+              </span>
+              <span className="px-1.5 py-[1px] rounded-full bg-[#A9791C] text-white text-[9px] font-bold truncate max-w-[52%] whitespace-nowrap">
+                🎯 {bestRecommendation.tacticalKey}
+              </span>
+            </div>
+            <div className={`leading-snug text-white font-medium ${isCompactLayout ? 'text-[10px] line-clamp-2' : 'text-[11.5px] line-clamp-4'}`}>
               {bestRecommendation.primaryReason}
             </div>
           </div>
