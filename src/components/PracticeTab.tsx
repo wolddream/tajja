@@ -1554,24 +1554,24 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               )}
             </div>
 
-            {/* 바닥패 두 줄 + 덱은 별도 칸으로 분리해, 바닥패 수가 짝수로 꽉 차서 줄바꿈될 때
-                덱 상자가 카드 줄 사이에 끼어 겹쳐 보이던 문제를 막는다(덱은 항상 고정된 자리). */}
-            <div className="w-full flex items-center justify-center gap-1.5">
-              <div className="flex-1 flex flex-col gap-1 min-w-0">
-                <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem]">
-                  {floorTop.map(card => (
+            {/* 바닥패 두 줄은 칸 전체 폭을 그대로 쓰고, 덱은 그 아래 별도 줄로 뺐다. 덱을 바닥패와
+                같은 줄에 나란히 두면(가로로 폭을 나눠 가지면) 좁은 화면에서 한 줄에 4장이 못 들어가
+                3장+1장으로 들쭉날쭉 줄바꿈되는 문제가 있어, 세로로 쌓아 바닥패 줄은 항상 온전한
+                폭을 쓰게 한다(덱은 항상 고정된 자리라 카드 줄과 겹치지도 않는다). */}
+            <div className="w-full flex flex-col items-center gap-1">
+              <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem] w-full">
+                {floorTop.map(card => (
+                  <CardView key={card.id} card={card} size="xs" disabled={true} />
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem] w-full">
+                {floorBottom.length > 0 ? (
+                  floorBottom.map(card => (
                     <CardView key={card.id} card={card} size="xs" disabled={true} />
-                  ))}
-                </div>
-                <div className="flex flex-wrap items-center justify-center gap-1 min-h-[3rem]">
-                  {floorBottom.length > 0 ? (
-                    floorBottom.map(card => (
-                      <CardView key={card.id} card={card} size="xs" disabled={true} />
-                    ))
-                  ) : floorTop.length === 0 ? (
-                    <div className="text-[10.5px] text-white/60 py-1">바닥이 비었습니다 (싹쓸이 상황!)</div>
-                  ) : null}
-                </div>
+                  ))
+                ) : floorTop.length === 0 ? (
+                  <div className="text-[10.5px] text-white/60 py-1">바닥이 비었습니다 (싹쓸이 상황!)</div>
+                ) : null}
               </div>
               <div className="shrink-0">
                 {showDeckTopCard && remainingDeck.length > 0 ? (
