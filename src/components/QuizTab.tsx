@@ -4,6 +4,19 @@ import { DEFAULT_QUIZZES } from '../utils/quizData';
 import { CardView } from './CardView';
 import { playClick, playSuccess, playCardSnap } from '../utils/sound';
 
+// 달력 날짜(YYYY-MM-DD)를 간단히 해시해 문제 배열 안의 인덱스로 매핑한다. 날짜 문자열이 같으면
+// 항상 같은 값이 나오므로, 같은 날에는 누가 접속하든 '오늘의 퀴즈'가 동일하게 고정된다
+// ("오늘의 퀴즈"라는 이름에도 실제로는 매번 0번부터 자유롭게 순환하던 것을 바로잡음).
+const getTodayQuizIndex = (total: number): number => {
+  if (total <= 0) return 0;
+  const dateStr = new Date().toISOString().split('T')[0];
+  let hash = 0;
+  for (let i = 0; i < dateStr.length; i++) {
+    hash = (hash * 31 + dateStr.charCodeAt(i)) >>> 0;
+  }
+  return hash % total;
+};
+
 interface QuizTabProps {
   attendanceStreak: number;
   quizCorrectCount: number;
@@ -19,12 +32,14 @@ export const QuizTab: React.FC<QuizTabProps> = ({
   onQuizCorrect,
   onQuizAttempt,
 }) => {
-  const [currentQuizIdx, setCurrentQuizIdx] = useState<number>(0);
+  const activeQuizzes = quizzes.length > 0 ? quizzes : DEFAULT_QUIZZES;
+  const todayQuizIdx = getTodayQuizIndex(activeQuizzes.length);
+  const [currentQuizIdx, setCurrentQuizIdx] = useState<number>(todayQuizIdx);
   const [selectedOptionId, setSelectedOptionId] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
 
-  const activeQuizzes = quizzes.length > 0 ? quizzes : DEFAULT_QUIZZES;
   const currentQuiz: QuizQuestion = activeQuizzes[currentQuizIdx % activeQuizzes.length];
+  const isTodayFeatured = currentQuizIdx % activeQuizzes.length === todayQuizIdx;
 
   const handleSelectOption = (optionId: number) => {
     if (isAnswered) return;
@@ -75,7 +90,7 @@ export const QuizTab: React.FC<QuizTabProps> = ({
 
         <div className="flex items-center gap-4 text-xs">
           <div className="px-3 py-1.5 rounded-lg bg-[#FAF6EC] border border-[#E5DFCE]">
-            <span className="text-[#7A7466]">오늘의 문제: </span>
+            <span className="text-[#7A7466]">현재 문제: </span>
             <span className="font-bold text-[#A9791C]">
               {(currentQuizIdx % activeQuizzes.length) + 1} / {activeQuizzes.length}
             </span>
@@ -92,8 +107,12 @@ export const QuizTab: React.FC<QuizTabProps> = ({
         {/* Quiz Title & Scenario */}
         <div className="space-y-2 border-b border-[#E5DFCE] pb-4">
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-[#2B3F5C] text-white">
-              실전 수읽기 퀴즈
+            <span
+              className={`px-2 py-0.5 text-[11px] font-bold rounded text-white ${
+                isTodayFeatured ? 'bg-[#A9791C]' : 'bg-[#2B3F5C]'
+              }`}
+            >
+              {isTodayFeatured ? '🔥 오늘의 공식 문제' : '추가 연습 문제'}
             </span>
             <span className="text-xs text-[#7A7466]">
               {currentQuiz.mode === 'matgo' ? '2인 맞고 규칙' : '3인 고스톱 규칙'}
