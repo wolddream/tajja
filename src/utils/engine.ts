@@ -62,6 +62,19 @@ export const evaluateHand = (
     opponentMonthCounts.set(c.month, (opponentMonthCounts.get(c.month) ?? 0) + 1);
   });
 
+  // 손패 전체에서 "더 위험한"(버리면 손실이 큰) 패가 몇 장 있는지 미리 세어둔다.
+  // 피를 안전하게 버리는 이유를 "그냥 안전하다"가 아니라 "손에 있는 광 1장·단 2장보다
+  // 이 피가 더 안전하다"처럼 구체적인 비교로 설명하기 위함.
+  const handGwangCount = userHand.filter(c => c.type === 'gwang').length;
+  const handGodoriCount = userHand.filter(c => c.subType === 'godori').length;
+  const handYeolOnlyCount = userHand.filter(c => c.type === 'yeol' && c.subType !== 'godori').length;
+  const handDanCount = userHand.filter(c => c.subType === 'hongdan' || c.subType === 'cheongdan' || c.subType === 'chodan').length;
+  const riskierInHandParts: string[] = [];
+  if (handGwangCount > 0) riskierInHandParts.push(`광 ${handGwangCount}장`);
+  if (handGodoriCount > 0) riskierInHandParts.push(`고도리 패 ${handGodoriCount}장`);
+  if (handYeolOnlyCount > 0) riskierInHandParts.push(`열끗 ${handYeolOnlyCount}장`);
+  if (handDanCount > 0) riskierInHandParts.push(`단(띠) ${handDanCount}장`);
+
   // Scored cards list
   const cardEvaluations = userHand.map(card => {
     let score = 50; // base score
@@ -188,7 +201,10 @@ export const evaluateHand = (
       } else {
         // Discarding normal Pi
         score += 15; // Relatively safe
-        reasons.push('바닥에 붙는 패가 없을 때 가장 손실이 적은 피를 안전하게 버리는 정석');
+        const comparativeNote = riskierInHandParts.length > 0
+          ? ` — 손패의 ${riskierInHandParts.join('·')}을(를) 먼저 지켜야 하므로, 상대에게 1점짜리 피 한 장만 내주는 이 패가 다른 패보다 손실이 적습니다.`
+          : ' 지금 손에 남은 패가 대부분 피라서, 어떤 패를 내도 손실 차이는 크지 않은 상황입니다.';
+        reasons.push(`바닥에 붙는 패가 없을 때 가장 손실이 적은 피를 안전하게 버리는 정석${comparativeNote}`);
         tacticalTag = '안전패 유치';
         riskTag = '상대적 안전';
       }
@@ -249,7 +265,13 @@ export const evaluateHand = (
     }
 
     if (reasons.length === 0) {
-      reasons.push(`${card.month}월 ${card.label} 패를 통제하여 다음 턴 기회 모색`);
+      // hasMatch인데 광/고도리/단/쌍피 같은 특별한 득점 요소가 없는 평범한 매치인 경우 —
+      // "기회 모색" 같은 막연한 말 대신 실제로 몇 장을 확보하는지 구체적으로 알려준다.
+      reasons.push(
+        hasMatch && targetFloorCard
+          ? `바닥의 ${targetFloorCard.name}과(와) 짝을 맞춰 ${floorMatches.length + 1}장을 확보하는 무난한 선택`
+          : `${card.month}월 ${card.label} 패를 통제하여 다음 턴 기회 모색`
+      );
     }
 
     return {

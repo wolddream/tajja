@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { HwatuCard, GameMode, AuthUser } from '../types/hwatu';
+import { HwatuCard, GameMode, AuthUser, Recommendation } from '../types/hwatu';
 import { HWATU_DECK, shuffleDeck } from '../utils/hwatuData';
 import { evaluateHand } from '../utils/engine';
 import { calculateScore, getStopThreshold, getPiBakThreshold, ScoreBreakdown } from '../utils/scoring';
@@ -489,34 +489,62 @@ const SettingsModal: React.FC<{
   </div>
 );
 
-// "핵심 승부처" 요약 칸은 좁아서 줄임 표시될 수 있어, 🔍 아이콘으로 전체 문장을 크게 볼 수 있는 팝업
-const CoreReasonModal: React.FC<{ cardName: string; winRate: number; text: string; onClose: () => void }> = ({
-  cardName,
-  winRate,
-  text,
+// "핵심 승부처" 요약 칸은 좁아서 줄임 표시될 수 있어, 🔍 아이콘으로 눌러서 보는 상세 팝업.
+// 이 앱의 핵심 가치이므로 문장 하나만 키워 보여주는 데 그치지 않고, 전술 태그·위험도·
+// 상대 견제 효과·예상 획득량까지 한 화면에 구체적으로 정리해 "왜 이 패인지"를 뒷받침한다.
+const CoreReasonModal: React.FC<{ recommendation: Recommendation; onClose: () => void }> = ({
+  recommendation,
   onClose,
-}) => (
-  <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-    <div
-      className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-3 relative"
-      onClick={e => e.stopPropagation()}
-    >
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="닫기"
-        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/10 hover:bg-black/20 text-[#555] text-sm font-bold flex items-center justify-center cursor-pointer"
+}) => {
+  const { card, winRate, gapToSecond, primaryReason, tacticalKey, riskFactor, detailedAnalysis } = recommendation;
+  const hasDefenseNote = detailedAnalysis.defenseImpact && detailedAnalysis.defenseImpact !== '없음' && detailedAnalysis.defenseImpact !== '상황 유지';
+  return (
+    <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-3 relative"
+        onClick={e => e.stopPropagation()}
       >
-        ✕
-      </button>
-      <div className="text-xs font-bold text-[#A9791C]">💡 핵심 승부처</div>
-      <div className="text-sm text-[#7A7466]">
-        추천 패 <b className="text-[#1F1F1F]">{cardName}</b> · 승률 <b className="text-[#9C3131]">{winRate}%</b>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="닫기"
+          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/10 hover:bg-black/20 text-[#555] text-sm font-bold flex items-center justify-center cursor-pointer"
+        >
+          ✕
+        </button>
+        <div className="text-xs font-bold text-[#A9791C]">💡 핵심 승부처</div>
+        <div className="text-sm text-[#7A7466]">
+          추천 패 <b className="text-[#1F1F1F]">{card.name}</b> · 승률 <b className="text-[#9C3131]">{winRate}%</b>
+          {gapToSecond > 0 && <span className="text-[#3B6255]"> (2위보다 +{gapToSecond}%p)</span>}
+        </div>
+        <p className="text-base leading-relaxed text-[#1F1F1F]">{primaryReason}</p>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="p-2.5 rounded-lg bg-white border border-[#E5DFCE]">
+            <div className="text-[10px] text-[#7A7466] mb-0.5">전술</div>
+            <div className="text-xs font-bold text-[#A9791C]">🎯 {tacticalKey}</div>
+          </div>
+          <div className="p-2.5 rounded-lg bg-white border border-[#E5DFCE]">
+            <div className="text-[10px] text-[#7A7466] mb-0.5">위험도</div>
+            <div className="text-xs font-bold text-[#9C3131]">{riskFactor}</div>
+          </div>
+        </div>
+
+        {hasDefenseNote && (
+          <div className="p-2.5 rounded-lg bg-[#3B6255]/10 border border-[#3B6255]/25 text-xs text-[#2F5245] leading-relaxed">
+            🛡️ {detailedAnalysis.defenseImpact}
+          </div>
+        )}
+
+        {detailedAnalysis.matchFound && (
+          <div className="text-[11px] text-[#7A7466]">
+            이번 수로 확보하는 패: <b className="text-[#1F1F1F]">약 {detailedAnalysis.pointsExpected}점 상당</b>
+          </div>
+        )}
       </div>
-      <p className="text-base leading-relaxed text-[#1F1F1F]">{text}</p>
     </div>
-  </div>
-);
+  );
+};
 
 export const PracticeTab: React.FC<PracticeTabProps> = ({
   onIncrementGameCount,
@@ -1578,9 +1606,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       {/* 핵심 승부처 전체 내용 팝업 */}
       {isCoreReasonOpen && (
         <CoreReasonModal
-          cardName={bestRecommendation.card.name}
-          winRate={bestRecommendation.winRate}
-          text={bestRecommendation.primaryReason}
+          recommendation={bestRecommendation}
           onClose={() => setIsCoreReasonOpen(false)}
         />
       )}
