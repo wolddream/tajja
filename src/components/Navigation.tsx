@@ -170,9 +170,11 @@ export const Navigation: React.FC<NavigationProps> = ({
       )}
 
       {/* Bottom Tab Navigation Bar (Mobile) — 연습(게임) 화면에서는 세로 공간을 더 내주기 위해
-          화면 왼쪽 밖으로 슬라이드해 숨기고, 아래 투명 버튼으로 꺼내 본다. */}
+          화면 왼쪽 밖으로 슬라이드해 숨기고, 아래 투명 버튼으로 꺼내 본다.
+          전체화면 모드의 게임판(z-[200])보다 더 위(z-[220])에 둬서, 전체화면 중에도 손잡이를
+          누르면 이 메뉴가 게임판 위로 제대로 올라와 보이게 한다(모달류 z-[250]/[300]보다는 아래). */}
       <nav
-        className={`fixed bottom-0 left-0 right-0 z-40 bg-[#FAF6EC] border-t border-[#DDD4C0] px-2 py-1 shadow-lg md:hidden transition-transform duration-300 ${
+        className={`fixed bottom-0 left-0 right-0 z-[220] bg-[#FAF6EC] border-t border-[#DDD4C0] px-2 py-1 shadow-lg md:hidden transition-transform duration-300 ${
           hideBottomBar && !bottomBarOpen ? '-translate-x-full' : 'translate-x-0'
         }`}
       >
@@ -220,7 +222,7 @@ export const Navigation: React.FC<NavigationProps> = ({
           type="button"
           onClick={() => { playClick(); setBottomBarOpen(prev => !prev); }}
           aria-label={bottomBarOpen ? '하단 메뉴 숨기기' : '하단 메뉴 보기'}
-          className="fixed bottom-6 left-0 z-50 w-7 h-11 bg-transparent md:hidden cursor-pointer flex items-center justify-center"
+          className="fixed bottom-6 left-0 z-[220] w-7 h-11 bg-transparent md:hidden cursor-pointer flex items-center justify-center"
         >
           <span className="w-full h-full rounded-r-lg bg-[#3D2817]/70 border border-l-0 border-[#A9791C]/60 flex items-center justify-center text-[#F3D999] text-[11px] leading-none">
             {bottomBarOpen ? '‹' : '›'}

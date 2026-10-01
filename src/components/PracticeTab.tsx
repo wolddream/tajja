@@ -648,8 +648,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   // "핵심 승부처" 문구가 좁은 칸에 줄임 표시될 때, 🔍 아이콘으로 전체 내용을 크게 볼 수 있는 팝업
   const [isCoreReasonOpen, setIsCoreReasonOpen] = useState<boolean>(false);
-  // 실제 브라우저 전체화면 API 대상 (주소창 등 브라우저 UI까지 가리기 위해 사용)
-  const fullscreenRootRef = useRef<HTMLDivElement>(null);
   // 게임판(felt table) 자체 — 실제 내용 높이(scrollHeight)가 화면에 고정된 표시 높이(clientHeight)를
   // 넘는지 측정해, 넘칠 때만 손패/핵심 승부처 글자를 자동으로 줄이기 위해 참조한다.
   const tableRef = useRef<HTMLDivElement>(null);
@@ -676,8 +674,13 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const enterFullscreen = useCallback(() => {
     playClick();
     setIsFullscreen(true);
-    const el = fullscreenRootRef.current as (HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> }) | null;
-    const request = el?.requestFullscreen?.bind(el) ?? el?.webkitRequestFullscreen?.bind(el);
+    // 브라우저 네이티브 전체화면은 이 컴포넌트 자신의 div가 아니라 문서 전체(documentElement)를
+    // 대상으로 건다. 특정 하위 요소를 대상으로 걸면, 그 요소 밖에 있는 하단 메뉴 손잡이 등은
+    // 네이티브 전체화면 중에는 브라우저가 아예 그리지 않아(z-index로도 해결 불가) 영영 안 보이게
+    // 된다. documentElement를 대상으로 하면 주소창 등 브라우저 UI는 그대로 가려지면서도, 이
+    // 컴포넌트 밖의 다른 요소들(손잡이 포함)은 평소처럼 계속 화면에 그려진다.
+    const el = document.documentElement as (HTMLElement & { webkitRequestFullscreen?: () => Promise<void> });
+    const request = el.requestFullscreen?.bind(el) ?? el.webkitRequestFullscreen?.bind(el);
     request?.()?.catch(() => {});
   }, []);
 
@@ -1345,7 +1348,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
 
   return (
     <div
-      ref={fullscreenRootRef}
       className={isFullscreen ? 'fixed inset-0 z-[200] bg-[#0F1712] p-2 sm:p-3 overflow-y-auto space-y-3' : ''}
     >
       {/* Main Playing Table Arena — 실제 게임 클라이언트 구도(코너 아바타 + 대칭 바닥패) 참고, 한 화면에 다 들어오도록 컴팩트 레이아웃.
