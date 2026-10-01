@@ -234,10 +234,13 @@ const CapturedStack: React.FC<{ captured: CapturedSummary; align?: 'left' | 'rig
   // 아직 하나도 못 먹은 칸은 높이를 비워 공간을 내주고, 그 칸에 처음 패가 들어오는 순간에만
   // min-h-[3rem]으로 늘어난다 — 게임 초반 빈 획득패 칸이 쓸데없이 2행치 공간을 차지해
   // 바닥패·내 손패 등 아래 영역을 압박하던 문제를 줄인다(그 대신 첫 획득 때 약간의 높이 변화는 감수).
+  // max-h로 "줄 2개 + 여백" 이상은 절대 못 늘어나게 못박아 둔다 — 전체화면 등 테이블이 아주 길어지는
+  // 상황에서 상위 flex 레이아웃이 이 칸에 불필요하게 큰 세로 공간을 내주더라도 빈 여백만 늘어나는 일이
+  // 없게 한다(상대 패 칸이 쓸데없이 커 보인다는 사용자 지적에 따른 방어적 상한선).
   const ROW_GAP = 6; // gap-1.5
   const CONTAINER_PADDING = 8; // p-1 (좌우 각 4px)
   return (
-    <div ref={containerRef} className={`flex flex-col gap-1 p-1 bg-black/20 rounded-lg self-stretch w-full min-w-0 ${align === 'right' ? 'items-end' : 'items-start'}`}>
+    <div ref={containerRef} className={`flex flex-col gap-1 p-1 bg-black/20 rounded-lg w-full min-w-0 max-h-[7.5rem] overflow-hidden ${align === 'right' ? 'items-end' : 'items-start'}`}>
       {rows.map(([first, second], rowIdx) => {
         const secondMaxWidth = rowWidth != null
           ? Math.max(PILE_CARD_W, rowWidth - CONTAINER_PADDING - pileNaturalWidth(first.length) - ROW_GAP)
