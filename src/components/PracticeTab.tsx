@@ -234,7 +234,9 @@ const CapturedStack: React.FC<{ captured: CapturedSummary; align?: 'left' | 'rig
   // 아직 하나도 못 먹은 칸은 높이를 비워 공간을 내주고, 그 칸에 처음 패가 들어오는 순간에만
   // min-h-[3rem]으로 늘어난다 — 게임 초반 빈 획득패 칸이 쓸데없이 2행치 공간을 차지해
   // 바닥패·내 손패 등 아래 영역을 압박하던 문제를 줄인다(그 대신 첫 획득 때 약간의 높이 변화는 감수).
-  const rowJustify = align === 'right' ? 'justify-end' : 'justify-start';
+  // 두 더미를 한쪽으로만 몰아 쌓지 않고 justify-between으로 양 끝에 벌려 둬서, 패가 적을 때도
+  // 칸 오른쪽(상대2가 없는 2인 모드 등)에 쓸모없이 남아돌던 빈 공간을 함께 활용한다.
+  const rowJustify = 'justify-between';
   const ROW_GAP = 6; // gap-1.5
   const CONTAINER_PADDING = 8; // p-1 (좌우 각 4px)
   return (
@@ -634,6 +636,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   // 계산되고 아래쪽 내용이 화면 밖으로 잘리는 경우가 있다(전체화면을 한 번 껐다 켜면 정상으로
   // 돌아오는 이유). fullscreenchange/resize 때마다 다시 측정해 이 값을 갱신한다.
   const [fullscreenHeightPx, setFullscreenHeightPx] = useState<number | null>(null);
+  // 창(비전체화면) 모드에서도 고정값(min(82vh,720px))이 실제 보이는 영역보다 작아 테이블 아래에
+  // 불필요한 빈 여백이 남는 문제가 있었다. 테이블 상단 위치와 하단 탭바 높이를 직접 측정해,
+  // 실제로 쓸 수 있는 높이만큼 테이블이 하단 메뉴 바로 위까지 꽉 차도록 채운다.
+  const [windowedHeightPx, setWindowedHeightPx] = useState<number | null>(null);
   // 게임 화면 안의 ⚙️ 아이콘으로 여는 설정 패널 (인원/시야 옵션/자동모드/시나리오 등을 모아둠)
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   // "핵심 승부처" 문구가 좁은 칸에 줄임 표시될 때, 🔍 아이콘으로 전체 내용을 크게 볼 수 있는 팝업
@@ -700,6 +706,30 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       window.removeEventListener('resize', measureViewport);
       window.visualViewport?.removeEventListener('resize', measureViewport);
+    };
+  }, []);
+
+  // 창 모드 전용 높이 측정: 테이블 상단 위치 ~ 하단 고정 탭바(모바일) 사이의 실제 여백을 재서,
+  // min(82vh,720px) 같은 추정값 대신 화면 하단 메뉴 바로 위까지 정확히 채운다.
+  useEffect(() => {
+    const measureWindowed = () => {
+      if (document.fullscreenElement) return;
+      const table = tableRef.current;
+      if (!table) return;
+      const top = table.getBoundingClientRect().top;
+      const bottomNav = document.querySelector('nav.fixed.bottom-0') as HTMLElement | null;
+      const navH = bottomNav ? bottomNav.getBoundingClientRect().height : 0;
+      const viewportH = window.visualViewport?.height ?? window.innerHeight;
+      const BOTTOM_GAP = 12;
+      const available = viewportH - top - navH - BOTTOM_GAP;
+      setWindowedHeightPx(available > 200 ? available : null);
+    };
+    measureWindowed();
+    window.addEventListener('resize', measureWindowed);
+    window.visualViewport?.addEventListener('resize', measureWindowed);
+    return () => {
+      window.removeEventListener('resize', measureWindowed);
+      window.visualViewport?.removeEventListener('resize', measureWindowed);
     };
   }, []);
 
@@ -1308,7 +1338,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   return (
     <div
       ref={fullscreenRootRef}
-      className={isFullscreen ? 'fixed inset-0 z-[200] bg-[#0F1712] p-2 sm:p-3 overflow-y-auto space-y-3' : 'space-y-5 pb-10'}
+      className={isFullscreen ? 'fixed inset-0 z-[200] bg-[#0F1712] p-2 sm:p-3 overflow-y-auto space-y-3' : ''}
     >
       {/* Main Playing Table Arena — 실제 게임 클라이언트 구도(코너 아바타 + 대칭 바닥패) 참고, 한 화면에 다 들어오도록 컴팩트 레이아웃.
           모든 설정은 테이블 안의 ⚙️ 설정 아이콘을 눌러 여는 패널에서 관리한다. */}
@@ -1321,10 +1351,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           // 내용이 작을 때 테이블이 줄어들어 화면이 들쭉날쭉해 보일 수 있었다).
           maxHeight: isFullscreen
             ? (fullscreenHeightPx ? `${fullscreenHeightPx - 24}px` : 'calc(100dvh - 24px)')
-            : 'min(82vh, 720px)',
+            : (windowedHeightPx ? `${windowedHeightPx}px` : 'min(82vh, 720px)'),
           height: isFullscreen
             ? (fullscreenHeightPx ? `${fullscreenHeightPx - 24}px` : 'calc(100dvh - 24px)')
-            : 'min(82vh, 720px)',
+            : (windowedHeightPx ? `${windowedHeightPx}px` : 'min(82vh, 720px)'),
         }}
       >
         {/* Subtle Felt Texture Vignette */}
