@@ -30,6 +30,11 @@ export const BoardTab: React.FC<BoardTabProps> = ({
   const [newMode, setNewMode] = useState<'matgo' | 'gostop3'>('matgo');
   const [selectedCandidateA, setSelectedCandidateA] = useState<HwatuCard>(HWATU_DECK[0]);
   const [selectedCandidateB, setSelectedCandidateB] = useState<HwatuCard>(HWATU_DECK[4]);
+  // 바닥패도 후보 A/B처럼 작성자가 직접 고르게 한다 — 예전에는 이 4장이 항상 고정값(HWATU_DECK[2,6,12,18])
+  // 이라 사용자가 뭘 선택하든 글에 보이는 "바닥 상황"이 실제 입력과 무관했다.
+  const [selectedFloorCards, setSelectedFloorCards] = useState<HwatuCard[]>([
+    HWATU_DECK[2], HWATU_DECK[6], HWATU_DECK[12], HWATU_DECK[18],
+  ]);
 
   const handleVote = (postId: string, choice: 'A' | 'B') => {
     playClick();
@@ -57,7 +62,7 @@ export const BoardTab: React.FC<BoardTabProps> = ({
       title: newTitle,
       description: newDescription || '이 패 상황에서 고수님들의 선택과 이유가 궁금합니다!',
       mode: newMode,
-      floorCards: [HWATU_DECK[2], HWATU_DECK[6], HWATU_DECK[12], HWATU_DECK[18]],
+      floorCards: selectedFloorCards,
       userHand: [selectedCandidateA, selectedCandidateB, HWATU_DECK[22]],
       candidateA: selectedCandidateA,
       candidateB: selectedCandidateB,
@@ -168,6 +173,20 @@ export const BoardTab: React.FC<BoardTabProps> = ({
                   {post.description}
                 </p>
               </div>
+
+              {/* 글쓴이가 고른 바닥패 상황 — 투표 전 참고용 */}
+              {post.floorCards.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="text-[11px] font-bold text-[#7A7466]">
+                    바닥에 깔린 패 (바닥패) · {post.floorCards.length}장
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {post.floorCards.map(c => (
+                      <CardView key={c.id} card={c} size="xs" disabled={true} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Dilemma Choice Voting Arena */}
               <div className="p-4 rounded-xl bg-[#FAF6EC] border border-[#E5DFCE] space-y-3">
@@ -368,6 +387,32 @@ export const BoardTab: React.FC<BoardTabProps> = ({
                   placeholder="현재 바닥패 상황이나 상대방의 먹은 패 상황을 적어주세요."
                   className="w-full px-3 py-2 rounded-lg bg-white border border-[#DDD4C0] text-xs focus:outline-hidden focus:border-[#A9791C]"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1F1F1F] mb-1">
+                  바닥패 선택 (4장) — 질문에 함께 표시됩니다
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {selectedFloorCards.map((floorCard, idx) => (
+                    <select
+                      key={idx}
+                      value={floorCard.id}
+                      onChange={e => {
+                        const found = HWATU_DECK.find(c => c.id === e.target.value);
+                        if (!found) return;
+                        setSelectedFloorCards(prev => prev.map((c, i) => (i === idx ? found : c)));
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-[#DDD4C0] text-xs"
+                    >
+                      {HWATU_DECK.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ))}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

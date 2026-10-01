@@ -51,12 +51,18 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
     ? Math.round((userProfile.quizCorrect / userProfile.quizTotal) * 100)
     : 0;
 
-  // Badges catalog
+  // Badges catalog — b3·b4는 레벨3("수읽기 달인")·레벨4("고도리 사냥꾼")와 이름이 같은 배지인데,
+  // 과거에는 그 레벨의 실제 요구 수치가 아니라 다른 레벨의 수치가 하드코딩돼 있어 이름이 암시하는
+  // 난이도보다 훨씬 쉽게 풀리는 불일치가 있었다(예: b4가 "고도리 사냥꾼"인데 레벨4 요구치 80회가
+  // 아니라 레벨2 요구치 25회만 넘으면 잠금 해제됨). LEVEL_REQUIREMENTS에서 직접 가져와 앞으로도
+  // 레벨 조건이 바뀌면 배지 조건도 함께 따라가도록 고쳤다.
+  const level3Req = LEVEL_REQUIREMENTS.find(r => r.level === 3)!;
+  const level4Req = LEVEL_REQUIREMENTS.find(r => r.level === 4)!;
   const ALL_BADGES = [
     { id: 'b1', name: '새내기 훈수패', icon: '🌱', desc: '훈수패 앱에 첫 발을 내딛음', unlocked: true },
     { id: 'b2', name: '첫 훈수 탐색', icon: '🔍', desc: '이유 자세히 보기를 1회 이상 확인', unlocked: userProfile.reasonsViewed >= 1 },
-    { id: 'b3', name: '수읽기 달인', icon: '🦅', desc: '오늘의 퀴즈 3회 이상 정답', unlocked: userProfile.quizCorrect >= 3 },
-    { id: 'b4', name: '고도리 사냥꾼', icon: '🐦', desc: '연습 경기 25회 이상 진행', unlocked: userProfile.totalGames >= 25 },
+    { id: 'b3', name: '수읽기 달인', icon: '🦅', desc: `오늘의 퀴즈 ${level3Req.quizCorrectRequired}회 이상 정답`, unlocked: userProfile.quizCorrect >= level3Req.quizCorrectRequired },
+    { id: 'b4', name: '고도리 사냥꾼', icon: '🐦', desc: `연습 경기 ${level4Req.gamesRequired}회 이상 진행`, unlocked: userProfile.totalGames >= level4Req.gamesRequired },
     { id: 'b5', name: '커뮤니티 타짜', icon: '✍️', desc: '게시판 토론에 3회 이상 참여', unlocked: userProfile.boardParticipation >= 3 },
     { id: 'b6', name: '출석의 신', icon: '🔥', desc: '연속 3일 이상 출석 달성', unlocked: userProfile.attendanceStreak >= 3 },
     { id: 'b7', name: '천하제일 타짜', icon: '✨', desc: '레벨 5(명인) 도달', unlocked: userProfile.level >= 5 },

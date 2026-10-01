@@ -95,15 +95,20 @@ export const CardView: React.FC<CardViewProps> = ({
     label = '열끗';
   }
 
+  // 카드가 disabled(클릭 불가)일 때는 <button> 대신 <div>로 렌더링한다. 바닥패/먹은 패 표시처럼
+  // 원래 클릭할 일이 없는 카드이기도 하고, 퀴즈·게시판처럼 이 CardView 전체를 바깥쪽 <button> 안에
+  // 또 넣어 쓰는 화면에서 button 안에 button이 중첩되는 HTML 스펙 위반(하이드레이션 경고 실측 확인)을
+  // 막기 위함이다 — 어차피 disabled 카드는 onClick이 동작하지 않으므로 기능 손실이 없다.
+  const CardFaceTag = disabled ? 'div' : 'button';
+  const cardFaceExtraProps = disabled ? {} : { type: 'button' as const, onClick };
+
   return (
     <div className="relative shrink-0">
       {/* 훈수패(AI 추천 패): 빙글빙글 도는 황금 테두리 */}
       {isRecommended && <div className="hp-recommended-ring" />}
 
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={disabled}
+      <CardFaceTag
+        {...cardFaceExtraProps}
         className={`
           ${sizeClasses[size]} relative z-[1] flex flex-col justify-between overflow-hidden
           rounded-[5px] bg-white text-left select-none transition-all duration-150
@@ -146,25 +151,36 @@ export const CardView: React.FC<CardViewProps> = ({
             {badgeText}
           </div>
         )}
-      </button>
+      </CardFaceTag>
 
-      {/* 상세 정보 보기 버튼 */}
+      {/* 상세 정보 보기 버튼 — <button> 대신 role="button"인 <div>로 둔다. 이 CardView 자체가
+          퀴즈·게시판 선택지처럼 바깥쪽 <button> 안에 놓이는 경우가 있어, 실제 <button>이면 그
+          바깥 버튼 안에 또 중첩되는 HTML 스펙 위반이 생기기 때문이다(키보드 접근성은
+          tabIndex+onKeyDown으로 동일하게 유지). */}
       {!hideInfo && (
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           onClick={(e) => {
             e.stopPropagation();
             setInfoOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              setInfoOpen(true);
+            }
           }}
           aria-label={`${card.name} 상세 정보 보기`}
           className={`
             ${plusBtnClasses[size]} absolute z-20 rounded-full flex items-center justify-center
             bg-[#1F1F1F] text-white font-bold shadow-sm border border-white/40
-            hover:bg-[#A9791C] active:scale-90 transition-colors
+            hover:bg-[#A9791C] active:scale-90 transition-colors cursor-pointer
           `}
         >
           +
-        </button>
+        </div>
       )}
 
       {infoOpen && <CardInfoModal card={card} onClose={() => setInfoOpen(false)} />}
