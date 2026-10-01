@@ -1475,7 +1475,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
 
         {/* Center: 핵심 승부처(좌) + Deck/Floor(우) — 별도 줄 대신 바닥패 영역 왼쪽에 이유를 붙이고
             바닥패는 오른쪽으로 시프트해, 손패가 두 줄로 늘어나도 세로 공간이 추가로 늘지 않게 한다. */}
-        <div className="relative z-10 my-1.5 mx-3.5 px-2.5 py-1.5 bg-black/25 rounded-xl border border-white/10 flex-1 flex items-stretch gap-2">
+        <div className="relative z-10 my-1.5 mx-3.5 px-2.5 py-1.5 bg-black/25 rounded-xl border border-white/10 flex-1 min-h-0 flex items-stretch gap-2">
           {/* 핵심 승부처 — 이 앱의 핵심 가치이므로 승률·전술 태그를 함께 배지로 노출하고,
               중요도(high/medium/low)에 따라 스타일을 달리해 결정적인 수일수록 눈에 띄게 한다. */}
           <div className={`w-[38%] shrink-0 flex flex-col justify-center gap-1 pr-2.5 transition-colors ${importanceStyle.boxClass}`}>
@@ -1508,8 +1508,9 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             </div>
           </div>
 
-          {/* 바닥패 + 덱 (오른쪽으로 시프트) */}
-          <div className="flex-1 min-w-0 flex flex-col items-center justify-center gap-1">
+          {/* 바닥패 + 덱 (오른쪽으로 시프트). 바닥패가 많아 두 줄 이상으로 늘어나도 아래 내 손패 영역이
+              화면 밖으로 밀려 잘리지 않도록, 이 칸만 min-h-0 + overflow-y-auto로 내부 스크롤되게 한다. */}
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col items-center justify-center gap-1 overflow-y-auto">
             <div className="w-full flex items-center justify-between text-[10px] text-[#A5C7B5]">
               <span className="font-bold text-[#FAF6EC]">바닥패 ({floorCards.length}장)</span>
               {lastDeckCard && (
