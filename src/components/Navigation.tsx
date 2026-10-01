@@ -210,17 +210,21 @@ export const Navigation: React.FC<NavigationProps> = ({
         </div>
       </nav>
 
-      {/* 하단 탭바를 꺼내 보는 버튼 — 화면 왼쪽 아래 가장자리에 고정, 배경은 투명해 게임 화면을
-          가리지 않는다. 완전히 안 보이면 사용자가 찾지 못한다는 피드백을 받아, 탭 위치를 알 수
-          있도록 아주 옅은 손잡이 모양 힌트만 하나 남겨둔다(두드러지지 않게 opacity를 낮게). */}
+      {/* 하단 탭바를 꺼내고/다시 넣는 손잡이 — 화면 왼쪽 아래 가장자리에 고정, 버튼 자체 배경은
+          투명해 게임 화면을 가리지 않는다. 손잡이 색이 옅은 크림색이라 똑같이 크림색인 배경
+          위에서는 전혀 안 보인다는 피드백을 받아, 배경(크림/펠트 초록) 어디서나 또렷이 구분되는
+          진한 색으로 바꾸고, 열림/닫힘 상태를 화살표 방향으로도 보여준다(한 번 더 누르면 다시
+          숨겨진다 — 토글 버튼이라 여는 것과 닫는 것이 같은 손잡이). */}
       {hideBottomBar && (
         <button
           type="button"
           onClick={() => { playClick(); setBottomBarOpen(prev => !prev); }}
           aria-label={bottomBarOpen ? '하단 메뉴 숨기기' : '하단 메뉴 보기'}
-          className="fixed bottom-0 left-0 z-50 w-6 h-20 bg-transparent md:hidden cursor-pointer flex items-center justify-center"
+          className="fixed bottom-6 left-0 z-50 w-7 h-11 bg-transparent md:hidden cursor-pointer flex items-center justify-center"
         >
-          <span className="w-[5px] h-9 rounded-full bg-[#F3D999]/35" />
+          <span className="w-full h-full rounded-r-lg bg-[#3D2817]/70 border border-l-0 border-[#A9791C]/60 flex items-center justify-center text-[#F3D999] text-[11px] leading-none">
+            {bottomBarOpen ? '‹' : '›'}
+          </span>
         </button>
       )}
     </>
