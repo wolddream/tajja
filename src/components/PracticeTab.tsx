@@ -1482,11 +1482,18 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             <button
               type="button"
               onClick={() => { playClick(); setIsCoreReasonOpen(true); }}
-              className={`flex items-center gap-1 text-[11.5px] font-black cursor-pointer w-fit ${importanceStyle.titleClass}`}
+              className={`flex items-center flex-wrap gap-x-1.5 gap-y-0 cursor-pointer w-fit ${importanceStyle.titleClass}`}
             >
-              <span>{importanceStyle.label}</span>
-              {importanceStyle.pulse && <span className="w-1.5 h-1.5 rounded-full bg-[#FFE9A8] animate-ping shrink-0" />}
-              <span aria-label="전체 내용 크게 보기" className="shrink-0">🔍</span>
+              <span className="flex items-center gap-1 text-[11.5px] font-black whitespace-nowrap">
+                <span>{importanceStyle.label}</span>
+                {importanceStyle.pulse && <span className="w-1.5 h-1.5 rounded-full bg-[#FFE9A8] animate-ping shrink-0" />}
+              </span>
+              <span
+                aria-label="전체 내용 크게 보기"
+                className="text-[9px] font-bold opacity-80 underline underline-offset-2 decoration-dotted whitespace-nowrap"
+              >
+                🔍 눌러서 상세 전략
+              </span>
             </button>
             <div className="flex items-center gap-1 flex-wrap">
               <span className={`px-1.5 py-[1px] rounded-full text-white text-[9.5px] font-black tabular-nums whitespace-nowrap ${importanceStyle.winBadgeClass}`}>
