@@ -234,9 +234,6 @@ const CapturedStack: React.FC<{ captured: CapturedSummary; align?: 'left' | 'rig
   // 아직 하나도 못 먹은 칸은 높이를 비워 공간을 내주고, 그 칸에 처음 패가 들어오는 순간에만
   // min-h-[3rem]으로 늘어난다 — 게임 초반 빈 획득패 칸이 쓸데없이 2행치 공간을 차지해
   // 바닥패·내 손패 등 아래 영역을 압박하던 문제를 줄인다(그 대신 첫 획득 때 약간의 높이 변화는 감수).
-  // 두 더미를 한쪽으로만 몰아 쌓지 않고 justify-between으로 양 끝에 벌려 둬서, 패가 적을 때도
-  // 칸 오른쪽(상대2가 없는 2인 모드 등)에 쓸모없이 남아돌던 빈 공간을 함께 활용한다.
-  const rowJustify = 'justify-between';
   const ROW_GAP = 6; // gap-1.5
   const CONTAINER_PADDING = 8; // p-1 (좌우 각 4px)
   return (
@@ -246,6 +243,10 @@ const CapturedStack: React.FC<{ captured: CapturedSummary; align?: 'left' | 'rig
           ? Math.max(PILE_CARD_W, rowWidth - CONTAINER_PADDING - pileNaturalWidth(first.length) - ROW_GAP)
           : undefined;
         const rowHasCards = first.length > 0 || second.length > 0;
+        // 두 더미가 모두 있으면 양 끝에 벌려 칸을 꽉 채우고, 하나만 있을 때는 한쪽 끝에 붙여두지
+        // 않고 가운데로 둬서(justify-center) 반대쪽에 남는 공간이 쓸모없이 비어 보이지 않게 한다.
+        const bothHaveCards = first.length > 0 && second.length > 0;
+        const rowJustify = bothHaveCards ? 'justify-between' : 'justify-center';
         return (
           <div
             key={rowIdx}
