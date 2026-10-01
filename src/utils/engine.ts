@@ -1,4 +1,4 @@
-import { HwatuCard, GameMode, RulePreset, Recommendation } from '../types/hwatu';
+import { HwatuCard, GameMode, RulePreset, Recommendation, ImportanceLevel } from '../types/hwatu';
 
 interface CapturedSummary {
   gwang: HwatuCard[];
@@ -6,6 +6,26 @@ interface CapturedSummary {
   tti: HwatuCard[];
   pi: HwatuCard[];
 }
+
+// 핵심 승부처 중요도 3단계 분류.
+// high: 광/고도리/단 완성 또는 차단, 뻑·따닥처럼 승패를 가르는 결정적인 수.
+// medium: 쌍피·피박 방어, 고도리 빌드업처럼 도움은 되지만 결정적이진 않은 수.
+// low: 특별한 득점 요소 없는 단순 매치, 안전패 버리기 등 평범한 운영.
+const HIGH_IMPORTANCE_TAGS = new Set([
+  '대박 찬스', '광 획득', '상대 광 저지', '고도리 차단',
+  '홍단 완성', '홍단 차단', '청단 완성', '청단 차단', '따닥 확정',
+]);
+const MEDIUM_IMPORTANCE_TAGS = new Set(['고도리 빌드', '상대 선점 저지']);
+
+const classifyImportance = (tacticalTag: string, rawScore: number): ImportanceLevel => {
+  if (HIGH_IMPORTANCE_TAGS.has(tacticalTag)) return 'high';
+  if (MEDIUM_IMPORTANCE_TAGS.has(tacticalTag)) return 'medium';
+  if (tacticalTag === '안전패 유치') return 'low';
+  // 뚜렷한 전술 태그가 없는(운영) 경우에는 점수 크기로 보조 판정한다 (쌍피 획득·피박 방어 등은 medium).
+  if (rawScore >= 95) return 'medium';
+  if (rawScore <= 55) return 'low';
+  return 'medium';
+};
 
 export const evaluateHand = (
   userHand: HwatuCard[],
@@ -30,6 +50,7 @@ export const evaluateHand = (
       primaryReason: '손패가 비어있습니다.',
       tacticalKey: '대기',
       riskFactor: '없음',
+      importance: 'low',
       detailedAnalysis: {
         targetMonth: 0,
         matchFound: false,
@@ -317,6 +338,7 @@ export const evaluateHand = (
       primaryReason: item.reasons.join(' · '),
       tacticalKey: item.tacticalTag,
       riskFactor: item.riskTag,
+      importance: classifyImportance(item.tacticalTag, item.rawScore),
       detailedAnalysis: {
         targetMonth: item.card.month,
         matchFound: item.hasMatch,

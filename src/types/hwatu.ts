@@ -23,6 +23,10 @@ export interface HwatuCard {
 export type GameMode = 'matgo' | 'gostop3'; // 2인 맞고 / 3인 고스톱
 export type RulePreset = 'standard' | 'basic'; // 국룰 (표준) / 기본 규칙
 
+// 핵심 승부처 내용의 중요도 3단계. 광/고도리/단 완성·차단처럼 승패에 결정적인 수는 'high',
+// 쌍피·피박 방어처럼 도움은 되지만 결정적이진 않은 수는 'medium', 단순 운영/안전패는 'low'.
+export type ImportanceLevel = 'high' | 'medium' | 'low';
+
 export interface Recommendation {
   card: HwatuCard;
   winRate: number; // e.g. 78.5
@@ -30,6 +34,7 @@ export interface Recommendation {
   primaryReason: string;
   tacticalKey: string;
   riskFactor: string;
+  importance: ImportanceLevel;
   detailedAnalysis: {
     targetMonth: number;
     matchFound: boolean;

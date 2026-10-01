@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { HwatuCard, GameMode, AuthUser, Recommendation } from '../types/hwatu';
+import { HwatuCard, GameMode, AuthUser, Recommendation, ImportanceLevel } from '../types/hwatu';
 import { HWATU_DECK, shuffleDeck } from '../utils/hwatuData';
 import { evaluateHand } from '../utils/engine';
 import { calculateScore, getStopThreshold, getPiBakThreshold, ScoreBreakdown } from '../utils/scoring';
@@ -23,6 +23,45 @@ type PlayerKey = 'user' | 'opp1' | 'opp2';
 
 // 자동 진행 지연 시간 (내 차례 자동 진행 + 상대 턴 + 고스톱 자동 결정에 공통 적용). 느림으로 고정.
 const AUTO_DELAY_MS = 1500;
+
+// 핵심 승부처 중요도 3단계별 표시 스타일 — 중요도가 높을수록 더 눈에 띄게 만든다.
+const IMPORTANCE_STYLE: Record<ImportanceLevel, {
+  label: string;
+  boxClass: string;
+  titleClass: string;
+  textClass: string;
+  winBadgeClass: string;
+  tacticalBadgeClass: string;
+  pulse: boolean;
+}> = {
+  high: {
+    label: '🔥 결정적 승부처',
+    boxClass: 'border-r-2 border-[#F3D999] bg-gradient-to-r from-[#9C3131]/20 to-transparent shadow-[0_0_14px_rgba(243,217,153,0.3)]',
+    titleClass: 'text-[#FFE9A8]',
+    textClass: 'text-white font-bold',
+    winBadgeClass: 'bg-[#9C3131] ring-1 ring-[#FFE9A8]/70',
+    tacticalBadgeClass: 'bg-[#A9791C] ring-1 ring-[#FFE9A8]/70',
+    pulse: true,
+  },
+  medium: {
+    label: '💡 핵심 승부처',
+    boxClass: 'border-r border-[#F3D999]/25',
+    titleClass: 'text-[#F3D999]',
+    textClass: 'text-white font-medium',
+    winBadgeClass: 'bg-[#9C3131]',
+    tacticalBadgeClass: 'bg-[#A9791C]',
+    pulse: false,
+  },
+  low: {
+    label: '📎 참고',
+    boxClass: 'border-r border-white/10',
+    titleClass: 'text-white/55',
+    textClass: 'text-white/65',
+    winBadgeClass: 'bg-white/15',
+    tacticalBadgeClass: 'bg-white/10',
+    pulse: false,
+  },
+};
 
 interface CapturedSummary {
   gwang: HwatuCard[];
@@ -496,12 +535,17 @@ const CoreReasonModal: React.FC<{ recommendation: Recommendation; onClose: () =>
   recommendation,
   onClose,
 }) => {
-  const { card, winRate, gapToSecond, primaryReason, tacticalKey, riskFactor, detailedAnalysis } = recommendation;
+  const { card, winRate, gapToSecond, primaryReason, tacticalKey, riskFactor, importance, detailedAnalysis } = recommendation;
   const hasDefenseNote = detailedAnalysis.defenseImpact && detailedAnalysis.defenseImpact !== '없음' && detailedAnalysis.defenseImpact !== '상황 유지';
+  const badge = {
+    high: { label: '🔥 결정적 승부처', className: 'bg-[#9C3131] text-white' },
+    medium: { label: '💡 핵심 승부처', className: 'bg-[#A9791C] text-white' },
+    low: { label: '📎 참고용 안내', className: 'bg-[#E5DFCE] text-[#7A7466]' },
+  }[importance];
   return (
     <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-3 relative"
+        className={`bg-[#FAF6EC] rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-3 relative border-2 ${importance === 'high' ? 'border-[#9C3131]' : 'border-[#A9791C]'}`}
         onClick={e => e.stopPropagation()}
       >
         <button
@@ -512,7 +556,9 @@ const CoreReasonModal: React.FC<{ recommendation: Recommendation; onClose: () =>
         >
           ✕
         </button>
-        <div className="text-xs font-bold text-[#A9791C]">💡 핵심 승부처</div>
+        <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full ${badge.className}`}>
+          {badge.label}
+        </span>
         <div className="text-sm text-[#7A7466]">
           추천 패 <b className="text-[#1F1F1F]">{card.name}</b> · 승률 <b className="text-[#9C3131]">{winRate}%</b>
           {gapToSecond > 0 && <span className="text-[#3B6255]"> (2위보다 +{gapToSecond}%p)</span>}
@@ -1220,6 +1266,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const userCapturedTotal =
     userCaptured.gwang.length + userCaptured.yeol.length + userCaptured.tti.length + userCaptured.pi.length;
 
+  const importanceStyle = IMPORTANCE_STYLE[bestRecommendation.importance];
   const isUserTurn = currentTurn === 'user' && !pendingGoStop && !gameResult;
   const cardsDisabled = autoMode || !isUserTurn;
 
@@ -1429,26 +1476,27 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         {/* Center: 핵심 승부처(좌) + Deck/Floor(우) — 별도 줄 대신 바닥패 영역 왼쪽에 이유를 붙이고
             바닥패는 오른쪽으로 시프트해, 손패가 두 줄로 늘어나도 세로 공간이 추가로 늘지 않게 한다. */}
         <div className="relative z-10 my-1.5 mx-3.5 px-2.5 py-1.5 bg-black/25 rounded-xl border border-white/10 flex-1 flex items-stretch gap-2">
-          {/* 핵심 승부처 — 이 앱의 핵심 가치이므로 승률·전술 태그를 함께 배지로 노출해
-              "지금 왜 이 패인지"를 한눈에, 더 눈에 띄게 전달한다. */}
-          <div className="w-[38%] shrink-0 flex flex-col justify-center gap-1 border-r border-[#F3D999]/25 pr-2.5">
+          {/* 핵심 승부처 — 이 앱의 핵심 가치이므로 승률·전술 태그를 함께 배지로 노출하고,
+              중요도(high/medium/low)에 따라 스타일을 달리해 결정적인 수일수록 눈에 띄게 한다. */}
+          <div className={`w-[38%] shrink-0 flex flex-col justify-center gap-1 pr-2.5 transition-colors ${importanceStyle.boxClass}`}>
             <button
               type="button"
               onClick={() => { playClick(); setIsCoreReasonOpen(true); }}
-              className="flex items-center gap-1 text-[11.5px] font-black text-[#F3D999] cursor-pointer w-fit"
+              className={`flex items-center gap-1 text-[11.5px] font-black cursor-pointer w-fit ${importanceStyle.titleClass}`}
             >
-              <span>💡 핵심 승부처</span>
+              <span>{importanceStyle.label}</span>
+              {importanceStyle.pulse && <span className="w-1.5 h-1.5 rounded-full bg-[#FFE9A8] animate-ping shrink-0" />}
               <span aria-label="전체 내용 크게 보기" className="shrink-0">🔍</span>
             </button>
             <div className="flex items-center gap-1 flex-wrap">
-              <span className="px-1.5 py-[1px] rounded-full bg-[#9C3131] text-white text-[9.5px] font-black tabular-nums whitespace-nowrap">
+              <span className={`px-1.5 py-[1px] rounded-full text-white text-[9.5px] font-black tabular-nums whitespace-nowrap ${importanceStyle.winBadgeClass}`}>
                 승률 {bestRecommendation.winRate}%
               </span>
-              <span className="px-1.5 py-[1px] rounded-full bg-[#A9791C] text-white text-[9px] font-bold truncate max-w-[52%] whitespace-nowrap">
+              <span className={`px-1.5 py-[1px] rounded-full text-white text-[9px] font-bold truncate max-w-[52%] whitespace-nowrap ${importanceStyle.tacticalBadgeClass}`}>
                 🎯 {bestRecommendation.tacticalKey}
               </span>
             </div>
-            <div className={`leading-snug text-white font-medium ${isCompactLayout ? 'text-[10px] line-clamp-2' : 'text-[11.5px] line-clamp-4'}`}>
+            <div className={`leading-snug ${importanceStyle.textClass} ${isCompactLayout ? 'text-[10px] line-clamp-2' : 'text-[11.5px] line-clamp-4'}`}>
               {bestRecommendation.primaryReason}
             </div>
           </div>
