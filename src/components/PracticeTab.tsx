@@ -1236,12 +1236,15 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         ref={tableRef}
         className="bg-[#2D4536] border-4 border-[#3D2817] rounded-2xl shadow-xl text-white relative overflow-hidden flex flex-col"
         style={{
+          // 가로·세로 폭이 내용(먹은 패 수, 핵심 승부처 글자 길이 등)에 따라 커졌다 작아졌다 하지
+          // 않도록, 창 모드에서도 전체화면과 마찬가지로 height를 고정값으로 둔다(maxHeight만으로는
+          // 내용이 작을 때 테이블이 줄어들어 화면이 들쭉날쭉해 보일 수 있었다).
           maxHeight: isFullscreen
             ? (fullscreenHeightPx ? `${fullscreenHeightPx - 24}px` : 'calc(100dvh - 24px)')
             : 'min(82vh, 720px)',
           height: isFullscreen
             ? (fullscreenHeightPx ? `${fullscreenHeightPx - 24}px` : 'calc(100dvh - 24px)')
-            : undefined,
+            : 'min(82vh, 720px)',
         }}
       >
         {/* Subtle Felt Texture Vignette */}
@@ -1502,20 +1505,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           </div>
         </div>
 
-        {/* Bottom bar: 자동 모드일 때만 표시. 내 차례도 잠시 후 알아서 진행되지만,
-            기다리지 않고 바로 넘기고 싶을 때를 위한 단축 버튼도 함께 둔다. */}
-        {autoMode && isUserTurn && userHand.length > 0 && (
-          <div className="relative z-10 shrink-0 flex items-center justify-end gap-2 px-3.5 py-1.5 mt-1 bg-black/30 border-t border-white/10 text-[10.5px] text-[#FAF6EC]">
-            <span className="text-white/60">⏳ 자동 진행 중…</span>
-            <button
-              type="button"
-              onClick={() => applyPlay('user', bestRecommendation.card)}
-              className="shrink-0 px-3 py-1.5 rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white text-[11px] font-bold cursor-pointer whitespace-nowrap animate-pulse"
-            >
-              ⏩ 지금 바로 진행
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Reason Detail Modal */}
