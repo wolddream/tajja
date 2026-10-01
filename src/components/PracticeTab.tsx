@@ -722,7 +722,11 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       if (!table) return;
       const top = table.getBoundingClientRect().top;
       const bottomNav = document.querySelector('nav.fixed.bottom-0') as HTMLElement | null;
-      const navH = bottomNav ? bottomNav.getBoundingClientRect().height : 0;
+      const navRect = bottomNav?.getBoundingClientRect();
+      // 연습 화면에서는 하단 탭바가 기본적으로 왼쪽 밖으로 슬라이드돼 숨어 있다(rect.right <= 0).
+      // 그 상태는 공간을 차지하지 않는 것으로 보고, 테이블이 그만큼 더 아래까지 채우게 한다.
+      const navVisible = !!navRect && navRect.right > 0;
+      const navH = navVisible ? (navRect?.height ?? 0) : 0;
       const viewportH = window.visualViewport?.height ?? window.innerHeight;
       const BOTTOM_GAP = 12;
       const available = viewportH - top - navH - BOTTOM_GAP;

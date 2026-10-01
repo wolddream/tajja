@@ -281,6 +281,7 @@ export default function App() {
         currentUser={authUser}
         onLogout={handleLogout}
         hideTopBar={isPracticeTab}
+        hideBottomBar={isPracticeTab}
       />
 
       {/* Main Content Area */}
