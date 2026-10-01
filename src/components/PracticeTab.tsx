@@ -1072,6 +1072,9 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       let newDeck = remainingDeck;
       let flippedDeckCard: HwatuCard | null = null;
       let capturedThisTurn: HwatuCard[] = [];
+      // 바닥에 원래 있던 패 중 이번 턴에 실제로 가져온 패들만 (낸 패/뒤집은 덱패 자체는 제외) —
+      // "어떤 패를 내고 어떤 패를 먹었는지"를 알림 배너에 구체적으로 보여주기 위함.
+      let floorCardsTaken: HwatuCard[] = [];
       let eventNote = '';
 
       if (isPpeok) {
@@ -1105,6 +1108,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
 
         newFloor = floorAfterPlay;
         capturedThisTurn = [...handCaptured, ...deckCaptured];
+        floorCardsTaken = [...handMatches, ...deckMatches];
 
         const isDdadak = handCaptured.length > 0 && deckCaptured.length > 0;
         const isJjok = handCaptured.length === 0 && deckCaptured.length > 0;
@@ -1143,14 +1147,17 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       setLastDeckCard(flippedDeckCard);
       if (playerKey === 'user') setSelectedCardId(null);
 
-      if (eventNote) setEventBanner(`${PLAYER_LABEL[playerKey]}: ${eventNote}`);
-      setActionLog(
-        capturedThisTurn.length > 0
-          ? `${PLAYER_LABEL[playerKey]}: 바닥의 ${card.month}월 패를 먹었습니다!`
-          : isPpeok
-          ? `${PLAYER_LABEL[playerKey]}: ${card.month}월 뻑이 발생했습니다.`
-          : `${PLAYER_LABEL[playerKey]}: 바닥에 일치하는 월이 없어 ${card.month}월을 깔았습니다.`
-      );
+      // 어떤 패를 내고 어떤 패를 먹었는지(혹은 못 먹었는지)를 매 턴 구체적인 카드 이름으로 보여준다.
+      // 예전에는 뻑/따닥 같은 특수 상황에서만 잠깐 배너가 떴고 평범한 플레이는 아무 표시 없이
+      // 상태만 바뀌어서 "방금 무슨 일이 있었는지" 알아채기 어려웠다(사용자 피드백).
+      const primaryMessage = isPpeok
+        ? `낸 패 ${card.name} · 뻑! ${card.month}월 패 3장 보류(이번 턴엔 못 먹음)`
+        : floorCardsTaken.length > 0
+        ? `낸 패 ${card.name} · 먹은 패 ${floorCardsTaken.map(c => c.name).join(', ')}`
+        : `낸 패 ${card.name} · 바닥에 깔림`;
+      const banner = `${PLAYER_LABEL[playerKey]}: ${primaryMessage}${eventNote ? ` · ${eventNote}` : ''}`;
+      setEventBanner(banner);
+      setActionLog(banner);
 
       const scoreInfo = calculateScore(nextCaptured);
       const crossedStopLine = capturedThisTurn.length > 0 && scoreInfo.total >= getStopThreshold(gameMode);
@@ -1384,9 +1391,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           </span>
         </div>
 
-        {/* 뻑/따닥/쪽/싹쓸이/흔들기 알림 배너 — 몇 초 뒤 자동으로 사라진다 */}
+        {/* 매 턴 "낸 패 · 먹은 패"를 보여주는 알림 배너(뻑/따닥/쪽/싹쓸이 등은 뒤에 덧붙여짐) —
+            몇 초 뒤 자동으로 사라진다. 카드 이름이 길 수 있어 한 줄 고정 대신 줄바꿈을 허용한다. */}
         {eventBanner && (
-          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1.5 rounded-full bg-[#A9791C] text-white text-[11px] font-bold shadow-lg whitespace-nowrap pointer-events-none">
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 max-w-[88%] px-3.5 py-1.5 rounded-2xl bg-[#A9791C] text-white text-[11px] font-bold shadow-lg text-center leading-snug pointer-events-none">
             {eventBanner}
           </div>
         )}
@@ -1470,6 +1478,15 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               </button>
             )}
           </div>
+        </div>
+
+        {/* 최근 동작 한 줄 요약 — "낸 패 · 먹은 패"가 몇 초 뒤 사라지는 알림 배너만으로는 놓치기
+            쉬워서, 항상 보이는 얇은 줄에도 마지막 동작을 남겨 둔다("자연스럽지 않다"는 피드백 반영). */}
+        <div
+          className="relative z-10 shrink-0 px-3.5 py-1 text-[10px] text-[#D8CBA8] bg-black/15 truncate"
+          title={actionLog}
+        >
+          {actionLog}
         </div>
 
         {/* Opponent Area — 코너 아바타 배지 구도 (상대1/상대2 색상·글자로 확실히 구분).
