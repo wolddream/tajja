@@ -15,6 +15,8 @@ import {
 } from './utils/storage';
 import { getNextLevelQuestConditions } from './utils/quests';
 import { playSuccess } from './utils/sound';
+import { HWATU_DECK } from './utils/hwatuData';
+import { getCardImageSrc } from './utils/cardImages';
 import { Navigation, TabKey } from './components/Navigation';
 import { PracticeTab } from './components/PracticeTab';
 import { RulesTab } from './components/RulesTab';
@@ -31,6 +33,18 @@ export default function App() {
   // 전체화면으로 띄운다. 페이지를 새로고침해 저장된 로그인 상태로 복귀하는 경우는 사용자 제스처가
   // 없어 브라우저가 네이티브 전체화면을 어차피 허용하지 않으므로 대상에서 제외한다.
   const [startFullscreen, setStartFullscreen] = useState(false);
+
+  // 화투패 48장 SVG를 앱이 뜨자마자 미리 받아 브라우저 캐시에 데워 둔다. 연습 화면에 진입하는
+  // 순간 손패·바닥패 수십 장의 <img>가 동시에 처음 요청되면, 느린 회선에서는 그림이 안 뜨고
+  // 회색으로 잠깐 보이는 현상이 생길 수 있다(사용자 피드백: "화투패 표시가 지연된다"). 같은 그림을
+  // 월별로 여러 장 재사용하므로 48장(실제로는 더 적은 고유 경로)만 한 번 미리 받아 두면 충분하다.
+  useEffect(() => {
+    const uniqueSrcs = new Set(HWATU_DECK.map(getCardImageSrc));
+    uniqueSrcs.forEach(src => {
+      const img = new Image();
+      img.src = src;
+    });
+  }, []);
 
   // App Navigation & Core Data
   const [currentTab, setCurrentTab] = useState<TabKey>('practice');
