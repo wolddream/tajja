@@ -518,14 +518,23 @@ const SettingsModal: React.FC<{
                 type="button"
                 disabled={!unlocked}
                 onClick={() => unlocked && onLoadScenario(scenario)}
-                className={`px-2.5 py-1.5 rounded-md border text-xs text-left ${
+                className={`relative overflow-hidden px-2.5 py-2 rounded-md border text-xs text-left bg-black ${
                   unlocked
-                    ? 'bg-white border-[#DDD4C0] hover:border-[#A9791C] text-[#222] cursor-pointer'
-                    : 'bg-[#F1EDE1] border-[#E5DFCE] text-[#A39C8A] cursor-not-allowed'
+                    ? 'border-[#3D2817] hover:border-[#A9791C] text-[#F3D999] cursor-pointer'
+                    : 'border-[#3D2817]/60 text-[#7A7466] cursor-not-allowed'
                 }`}
               >
-                <div className="font-bold">{unlocked ? '🎓' : '🔒'} {scenario.title}</div>
-                <div className="text-[10px] mt-0.5 opacity-80">
+                {/* 가운데 큰 불꽃 무늬 — 심화학습의 "열기/특별함"을 검은 배경 위에 은은하게 강조 */}
+                <span
+                  aria-hidden="true"
+                  className={`absolute inset-0 flex items-center justify-center text-[2.75rem] leading-none pointer-events-none select-none ${
+                    unlocked ? 'opacity-25' : 'opacity-10 grayscale'
+                  }`}
+                >
+                  🔥
+                </span>
+                <div className="relative font-bold">{unlocked ? '🎓' : '🔒'} {scenario.title}</div>
+                <div className="relative text-[10px] mt-0.5 opacity-80">
                   {unlocked ? scenario.focus : `레벨 ${scenario.unlockLevel} 달성 시 해금`}
                 </div>
               </button>
