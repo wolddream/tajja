@@ -791,14 +791,22 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   });
   // 뻑/따닥/쪽/싹쓸이 등 특수 상황이 발생했을 때 잠깐 띄우는 알림 배너.
   const [eventBanner, setEventBanner] = useState<string | null>(null);
-  // 낸 패가 바닥패를 먹는 순간, 두 패가 절반쯤 포개진 모습을 잠깐 보여준다 — 실제로 패를 쳐서
-  // 짝 위에 겹쳐 놓는 그 장면이 하나도 안 보여서 "자연스럽지 않다"는 피드백 반영.
-  const [matchPreview, setMatchPreview] = useState<{ played: HwatuCard; matched: HwatuCard; extra: number } | null>(null);
+  // 낸 패가 바닥패를 먹는 순간, 두 패가 절반쯤 포개진 모습을 "그 바닥패가 원래 있던 자리"에
+  // 잠깐 보여준다 — 자리가 바뀌는(별도 영역에 뜨는) 게 아니라 원래 위치에서 포개져야 자연스럽다는
+  // 피드백 반영. offset은 바닥패 그리드(floorGridRef) 기준 상대 좌표로, 캡처 직전(아직 상태가
+  // 바뀌기 전) DOM에서 실측한 값이다.
+  const [matchPreview, setMatchPreview] = useState<{
+    played: HwatuCard; matched: HwatuCard; extra: number; offset: { x: number; y: number } | null;
+  } | null>(null);
   useEffect(() => {
     if (!matchPreview) return;
     const t = window.setTimeout(() => setMatchPreview(null), 1100);
     return () => window.clearTimeout(t);
   }, [matchPreview]);
+  // 바닥패 그리드 컨테이너 + 그 안의 각 카드 DOM을 id별로 추적 — 패를 먹기 직전(상태 갱신 전)
+  // 실제 화면 위치를 재서 포개짐 연출을 그 자리에 정확히 띄우기 위함.
+  const floorGridRef = useRef<HTMLDivElement>(null);
+  const floorCardElRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [pendingGoStop, setPendingGoStop] = useState<PlayerKey | null>(null);
   const [pendingScore, setPendingScore] = useState<ScoreBreakdown | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
@@ -1099,7 +1107,17 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           : [...floorCards, card];
         if (handCaptured.length > 0) {
           playCapture();
-          setMatchPreview({ played: card, matched: handMatches[0], extra: handMatches.length - 1 });
+          // 아직 floorCards 상태가 바뀌기 전이라, 먹히는 바닥패가 실제로 그려져 있던 위치를
+          // 지금 이 시점에 측정해야 "원래 있던 자리"에 포개짐 연출을 띄울 수 있다.
+          let offset: { x: number; y: number } | null = null;
+          const matchedEl = floorCardElRefs.current[handMatches[0].id];
+          const gridEl = floorGridRef.current;
+          if (matchedEl && gridEl) {
+            const gridRect = gridEl.getBoundingClientRect();
+            const cardRect = matchedEl.getBoundingClientRect();
+            offset = { x: cardRect.left - gridRect.left, y: cardRect.top - gridRect.top };
+          }
+          setMatchPreview({ played: card, matched: handMatches[0], extra: handMatches.length - 1, offset });
         }
 
         let deckMatches: HwatuCard[] = [];
@@ -1598,39 +1616,44 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               )}
             </div>
 
-            {/* 낸 패가 바닥패를 먹는 순간: 두 패를 절반쯤 겹쳐 놓아 "방금 이 패가 저 패를 쳐서
-                가져갔다"는 장면을 잠깐 보여준다. 실제 상태(floorCards 등)는 이미 바뀐 뒤라,
-                이 두 장은 현재 바닥패 목록과 무관한 별도의 스냅샷일 뿐이다. */}
-            {matchPreview && (
-              <div className="flex flex-col items-center gap-0.5 animate-in fade-in duration-150">
-                <div className="relative h-12 flex items-center" style={{ width: '48px' }}>
-                  <div className="absolute left-0 top-0">
-                    <CardView card={matchPreview.matched} size="xs" disabled={true} fullOpacity />
-                  </div>
-                  <div className="absolute left-4 top-0 ring-2 ring-[#F3D999] rounded-sm shadow-lg">
-                    <CardView card={matchPreview.played} size="xs" disabled={true} fullOpacity />
-                  </div>
-                  {matchPreview.extra > 0 && (
-                    <span className="absolute -right-1 -bottom-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-black/80 border border-white/50 text-[8px] font-bold text-white flex items-center justify-center leading-none">
-                      +{matchPreview.extra}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* 바닥패는 폭에 따라 줄마다 장수가 들쭉날쭉 바뀌는 flex-wrap 대신 그리드로 가지런히
                 정렬한다. 고정 2열 대신 auto-fill로 가로 폭이 허용하는 만큼 카드를 최대한 많이
                 한 줄에 채워, 줄 수(= 세로 공간)를 꼭 필요한 만큼만 쓰도록 한다(화면이 넓으면
                 한 줄에 더 많이, 좁으면 자동으로 줄어든다 — 어느 폭에서도 줄은 항상 가지런함). */}
             <div className="w-full flex flex-col items-center gap-1">
-              <div className="grid grid-cols-[repeat(auto-fill,32px)] gap-1 justify-center w-full">
+              <div ref={floorGridRef} className="relative grid grid-cols-[repeat(auto-fill,32px)] gap-1 justify-center w-full">
                 {floorCards.length === 0 ? (
                   <div className="col-span-full text-[10.5px] text-white/60 py-1">바닥이 비었습니다 (싹쓸이 상황!)</div>
                 ) : (
                   floorCards.map(card => (
-                    <CardView key={card.id} card={card} size="xs" disabled={true} />
+                    <div key={card.id} ref={el => { floorCardElRefs.current[card.id] = el; }}>
+                      <CardView card={card} size="xs" disabled={true} />
+                    </div>
                   ))
+                )}
+
+                {/* 낸 패가 바닥패를 먹는 순간: 그 바닥패가 원래 있던 자리(offset)에 낸 패를 절반쯤
+                    겹쳐 올려 보여준다. 실제 floorCards는 이미 갱신된 뒤라, 이 레이어는 그 위에
+                    얹히는 연출용 오버레이일 뿐이다(측정 실패 시엔 조용히 생략). */}
+                {matchPreview && matchPreview.offset && (
+                  <div
+                    className="absolute z-20 animate-in fade-in duration-150 pointer-events-none"
+                    style={{ left: matchPreview.offset.x, top: matchPreview.offset.y }}
+                  >
+                    <div className="relative w-8 h-12">
+                      <div className="absolute left-0 top-0">
+                        <CardView card={matchPreview.matched} size="xs" disabled={true} fullOpacity />
+                      </div>
+                      <div className="absolute left-4 top-0 ring-2 ring-[#F3D999] rounded-sm shadow-lg">
+                        <CardView card={matchPreview.played} size="xs" disabled={true} fullOpacity />
+                      </div>
+                      {matchPreview.extra > 0 && (
+                        <span className="absolute -right-1 -bottom-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-black/80 border border-white/50 text-[8px] font-bold text-white flex items-center justify-center leading-none">
+                          +{matchPreview.extra}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
               <div className="shrink-0">
