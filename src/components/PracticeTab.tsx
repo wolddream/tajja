@@ -25,6 +25,9 @@ type PlayerKey = 'user' | 'opp1' | 'opp2';
 
 // 자동 진행 지연 시간 (내 차례 자동 진행 + 상대 턴 + 고스톱 자동 결정에 공통 적용). 느림으로 고정.
 const AUTO_DELAY_MS = 1500;
+// 낸 패가 바닥에 놓이는 순간과 덱패를 뒤집는 순간 사이의 시간차 — 실제 화투를 칠 때처럼 두 동작이
+// 동시가 아니라 한 박자 떨어져 일어나는 느낌을 준다.
+const DECK_FLIP_DELAY_MS = 650;
 
 // 핵심 승부처 중요도 3단계별 표시 스타일 — 중요도가 높을수록 더 눈에 띄게 만든다.
 const IMPORTANCE_STYLE: Record<ImportanceLevel, {
@@ -808,6 +811,14 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const floorGridRef = useRef<HTMLDivElement>(null);
   const floorCardElRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [pendingGoStop, setPendingGoStop] = useState<PlayerKey | null>(null);
+  // 낸 패가 바닥에 놓인 뒤부터 덱패가 뒤집히기까지의 짧은 간격 — 실제로 패를 치고 잠깐 뒤에 덱을
+  // 넘기는 그 시간차가 하나도 없어서 "비현실적"이라는 피드백 반영. 이 값이 true인 동안은 같은
+  // 플레이어의 다음 입력(사용자 클릭·자동 진행 둘 다)을 막아 중복 플레이를 방지한다.
+  const [pendingDeckFlip, setPendingDeckFlip] = useState<boolean>(false);
+  // 2단계(덱 공개) setTimeout의 id. 대국을 새로 시작하는 등으로 도중에 턴 상태를 리셋할 때
+  // 아직 안 터진 이 타이머를 반드시 꺼야 한다 — 안 그러면 리셋된(새) 판에 이전 판의 묵은
+  // 턴 결과가 뒤늦게 끼어들어 상태가 꼬일 수 있다.
+  const pendingDeckFlipTimeoutRef = useRef<number | null>(null);
   const [pendingScore, setPendingScore] = useState<ScoreBreakdown | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   // 결과 모달을 닫아도 경기 판(최종 바닥패·먹은 패)은 계속 볼 수 있게, 모달 표시 여부만 따로 관리한다.
@@ -832,6 +843,11 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     setEventBanner(null);
     setPendingGoStop(null);
     setPendingScore(null);
+    setPendingDeckFlip(false);
+    if (pendingDeckFlipTimeoutRef.current !== null) {
+      window.clearTimeout(pendingDeckFlipTimeoutRef.current);
+      pendingDeckFlipTimeoutRef.current = null;
+    }
     setGameResult(null);
     setResultModalOpen(false);
   };
@@ -1067,140 +1083,175 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   //    1장씩 받아온다.
   const applyPlay = useCallback(
     (playerKey: PlayerKey, card: HwatuCard) => {
-      if (gameResult || pendingGoStop) return;
+      if (gameResult || pendingGoStop || pendingDeckFlip) return;
 
       playCardSnap();
 
       const currentHand = getHand(playerKey);
       const prevCaptured = getCaptured(playerKey);
-      const nextCaptured: CapturedSummary = {
+
+      const rawHandMatches = floorCards.filter(f => f.month === card.month);
+      const peekedDeckCard = remainingDeck[0] ?? null;
+      const isPpeok = rawHandMatches.length === 1 && !!peekedDeckCard && peekedDeckCard.month === card.month;
+      const handMatches = isPpeok ? [] : rawHandMatches;
+      const handCaptured = handMatches.length > 0 ? [card, ...handMatches] : [];
+
+      // ── 1단계: 낸 패가 바닥에 놓이는 순간(바로 커밋). 덱패는 아직 뒤집지 않는다 — 실제로
+      // 패를 치고 한 박자 뒤에 덱을 넘기는 시간차를 주기 위함(사용자 피드백 반영). ──────────
+      let handOnlyFloor: HwatuCard[];
+      if (isPpeok) {
+        // 뻑은 셋(낸 패+바닥 짝패+덱패)이 함께 묶여야 확정되므로, 1단계에서는 낸 패가 바닥
+        // 짝패 옆에 나란히 놓이기만 하고 아직 잠기지 않는다(잠김 확정은 2단계/덱 공개 시점).
+        handOnlyFloor = [...floorCards.filter(f => f.month !== card.month), card, rawHandMatches[0]];
+      } else if (handMatches.length > 0) {
+        handOnlyFloor = floorCards.filter(f => f.month !== card.month);
+        playCapture();
+        // 아직 floorCards 상태가 바뀌기 전이라, 먹히는 바닥패가 실제로 그려져 있던 위치를
+        // 지금 이 시점에 측정해야 "원래 있던 자리"에 포개짐 연출을 띄울 수 있다.
+        let offset: { x: number; y: number } | null = null;
+        const matchedEl = floorCardElRefs.current[handMatches[0].id];
+        const gridEl = floorGridRef.current;
+        if (matchedEl && gridEl) {
+          const gridRect = gridEl.getBoundingClientRect();
+          const cardRect = matchedEl.getBoundingClientRect();
+          offset = { x: cardRect.left - gridRect.left, y: cardRect.top - gridRect.top };
+        }
+        setMatchPreview({ played: card, matched: handMatches[0], extra: handMatches.length - 1, offset });
+      } else {
+        handOnlyFloor = [...floorCards, card];
+      }
+
+      const handOnlyCaptured: CapturedSummary = {
         gwang: [...prevCaptured.gwang],
         yeol: [...prevCaptured.yeol],
         tti: [...prevCaptured.tti],
         pi: [...prevCaptured.pi],
       };
-
-      const rawHandMatches = floorCards.filter(f => f.month === card.month);
-      const peekedDeckCard = remainingDeck[0] ?? null;
-      const isPpeok = rawHandMatches.length === 1 && !!peekedDeckCard && peekedDeckCard.month === card.month;
-
-      let newFloor: HwatuCard[];
-      let newDeck = remainingDeck;
-      let flippedDeckCard: HwatuCard | null = null;
-      let capturedThisTurn: HwatuCard[] = [];
-      // 바닥에 원래 있던 패 중 이번 턴에 실제로 가져온 패들만 (낸 패/뒤집은 덱패 자체는 제외) —
-      // "어떤 패를 내고 어떤 패를 먹었는지"를 알림 배너에 구체적으로 보여주기 위함.
-      let floorCardsTaken: HwatuCard[] = [];
-      let eventNote = '';
-
-      if (isPpeok) {
-        // 셋 다(낸 패 + 바닥 짝패 + 덱패) 먹지 못하고 바닥에 그대로 쌓인다.
-        newFloor = [...floorCards.filter(f => f.month !== card.month), card, rawHandMatches[0], peekedDeckCard!];
-        newDeck = remainingDeck.slice(1);
-        flippedDeckCard = peekedDeckCard;
-        eventNote = `🀄 뻑! ${card.month}월 패 3장이 바닥에 묶여 이번 턴엔 먹지 못했습니다.`;
-      } else {
-        const handMatches = rawHandMatches;
-        const handCaptured = handMatches.length > 0 ? [card, ...handMatches] : [];
-        let floorAfterPlay = handMatches.length > 0
-          ? floorCards.filter(f => f.month !== card.month)
-          : [...floorCards, card];
-        if (handCaptured.length > 0) {
-          playCapture();
-          // 아직 floorCards 상태가 바뀌기 전이라, 먹히는 바닥패가 실제로 그려져 있던 위치를
-          // 지금 이 시점에 측정해야 "원래 있던 자리"에 포개짐 연출을 띄울 수 있다.
-          let offset: { x: number; y: number } | null = null;
-          const matchedEl = floorCardElRefs.current[handMatches[0].id];
-          const gridEl = floorGridRef.current;
-          if (matchedEl && gridEl) {
-            const gridRect = gridEl.getBoundingClientRect();
-            const cardRect = matchedEl.getBoundingClientRect();
-            offset = { x: cardRect.left - gridRect.left, y: cardRect.top - gridRect.top };
-          }
-          setMatchPreview({ played: card, matched: handMatches[0], extra: handMatches.length - 1, offset });
-        }
-
-        let deckMatches: HwatuCard[] = [];
-        let deckCaptured: HwatuCard[] = [];
-        if (remainingDeck.length > 0) {
-          flippedDeckCard = remainingDeck[0];
-          newDeck = remainingDeck.slice(1);
-          deckMatches = floorAfterPlay.filter(f => f.month === flippedDeckCard!.month);
-          if (deckMatches.length > 0) {
-            deckCaptured = [flippedDeckCard, ...deckMatches];
-            floorAfterPlay = floorAfterPlay.filter(f => f.month !== flippedDeckCard!.month);
-            setTimeout(() => playCapture(), 120);
-          } else {
-            floorAfterPlay = [...floorAfterPlay, flippedDeckCard];
-          }
-        }
-
-        newFloor = floorAfterPlay;
-        capturedThisTurn = [...handCaptured, ...deckCaptured];
-        floorCardsTaken = [...handMatches, ...deckMatches];
-
-        const isDdadak = handCaptured.length > 0 && deckCaptured.length > 0;
-        const isJjok = handCaptured.length === 0 && deckCaptured.length > 0;
-        const isBigSweep = handMatches.length >= 3 || deckMatches.length >= 3;
-        const isSsakssuli = floorCards.length > 0 && newFloor.length === 0;
-        const bonusTriggered = isDdadak || isJjok || isBigSweep || isSsakssuli;
-
-        if (bonusTriggered) {
-          const label = isDdadak ? '따닥' : isJjok ? '쪽' : isBigSweep ? '쓸어담기' : '싹쓸이';
-          eventNote = `✨ ${label}! 상대에게서 피 1장씩 받아옵니다.`;
-          turnOrder.filter(k => k !== playerKey).forEach(k => {
-            const theirCaptured = getCaptured(k);
-            if (theirCaptured.pi.length > 0) {
-              const stolen = theirCaptured.pi[theirCaptured.pi.length - 1];
-              setCapturedFor(k)({ ...theirCaptured, pi: theirCaptured.pi.filter(c => c.id !== stolen.id) });
-              nextCaptured.pi.push(stolen);
-            }
-          });
-        }
-      }
-
-      capturedThisTurn.forEach(c => {
-        if (c.type === 'gwang') nextCaptured.gwang.push(c);
-        else if (c.type === 'yeol') nextCaptured.yeol.push(c);
-        else if (c.type === 'tti') nextCaptured.tti.push(c);
-        else nextCaptured.pi.push(c);
+      handCaptured.forEach(c => {
+        if (c.type === 'gwang') handOnlyCaptured.gwang.push(c);
+        else if (c.type === 'yeol') handOnlyCaptured.yeol.push(c);
+        else if (c.type === 'tti') handOnlyCaptured.tti.push(c);
+        else handOnlyCaptured.pi.push(c);
       });
 
       const newHandAfter = currentHand.filter(c => c.id !== card.id);
 
-      // commit state
-      setCapturedFor(playerKey)(nextCaptured);
+      setCapturedFor(playerKey)(handOnlyCaptured);
       setHandFor(playerKey)(newHandAfter);
-      setFloorCards(newFloor);
-      setRemainingDeck(newDeck);
-      setLastDeckCard(flippedDeckCard);
+      setFloorCards(handOnlyFloor);
       if (playerKey === 'user') setSelectedCardId(null);
+      setPendingDeckFlip(true);
 
-      // 어떤 패를 내고 어떤 패를 먹었는지(혹은 못 먹었는지)를 매 턴 구체적인 카드 이름으로 보여준다.
-      // 예전에는 뻑/따닥 같은 특수 상황에서만 잠깐 배너가 떴고 평범한 플레이는 아무 표시 없이
-      // 상태만 바뀌어서 "방금 무슨 일이 있었는지" 알아채기 어려웠다(사용자 피드백).
-      const primaryMessage = isPpeok
-        ? `낸 패 ${card.name} · 뻑! ${card.month}월 패 3장 보류(이번 턴엔 못 먹음)`
-        : floorCardsTaken.length > 0
-        ? `낸 패 ${card.name} · 먹은 패 ${floorCardsTaken.map(c => c.name).join(', ')}`
+      const handOnlyMessage = isPpeok
+        ? `낸 패 ${card.name} · 바닥 짝패와 나란히 (덱 확인 중…)`
+        : handMatches.length > 0
+        ? `낸 패 ${card.name} · 먹은 패 ${handMatches.map(c => c.name).join(', ')}`
         : `낸 패 ${card.name} · 바닥에 깔림`;
-      const banner = `${PLAYER_LABEL[playerKey]}: ${primaryMessage}${eventNote ? ` · ${eventNote}` : ''}`;
-      setEventBanner(banner);
-      setActionLog(banner);
+      const interimBanner = `${PLAYER_LABEL[playerKey]}: ${handOnlyMessage}`;
+      setEventBanner(interimBanner);
+      setActionLog(interimBanner);
 
-      const scoreInfo = calculateScore(nextCaptured);
-      const crossedStopLine = capturedThisTurn.length > 0 && scoreInfo.total >= getStopThreshold(gameMode);
+      // ── 2단계: 한 박자 뒤, 덱패를 뒤집어 턴을 마무리한다 ──────────────────────────────
+      pendingDeckFlipTimeoutRef.current = window.setTimeout(() => {
+        pendingDeckFlipTimeoutRef.current = null;
+        let newFloor = handOnlyFloor;
+        let newDeck = remainingDeck;
+        let flippedDeckCard: HwatuCard | null = null;
+        let deckCapturedThisTurn: HwatuCard[] = [];
+        let floorCardsTaken: HwatuCard[] = [...handMatches];
+        let eventNote = '';
+        const nextCaptured: CapturedSummary = {
+          gwang: [...handOnlyCaptured.gwang],
+          yeol: [...handOnlyCaptured.yeol],
+          tti: [...handOnlyCaptured.tti],
+          pi: [...handOnlyCaptured.pi],
+        };
 
-      if (crossedStopLine) {
-        setPendingGoStop(playerKey);
-        setPendingScore(scoreInfo);
-        return;
-      }
+        if (isPpeok) {
+          // 덱패까지 같은 월이면 셋 다 바닥에 묶여 확정된다.
+          newFloor = [...handOnlyFloor, peekedDeckCard!];
+          newDeck = remainingDeck.slice(1);
+          flippedDeckCard = peekedDeckCard;
+          eventNote = `🀄 뻑! ${card.month}월 패 3장이 바닥에 묶여 이번 턴엔 먹지 못했습니다.`;
+        } else {
+          let deckMatches: HwatuCard[] = [];
+          let floorAfterDeck = handOnlyFloor;
+          if (remainingDeck.length > 0) {
+            flippedDeckCard = remainingDeck[0];
+            newDeck = remainingDeck.slice(1);
+            deckMatches = floorAfterDeck.filter(f => f.month === flippedDeckCard!.month);
+            if (deckMatches.length > 0) {
+              deckCapturedThisTurn = [flippedDeckCard, ...deckMatches];
+              floorAfterDeck = floorAfterDeck.filter(f => f.month !== flippedDeckCard!.month);
+              playCapture();
+            } else {
+              floorAfterDeck = [...floorAfterDeck, flippedDeckCard];
+            }
+          }
 
-      const capturedSnapshot: Partial<Record<PlayerKey, CapturedSummary>> = { [playerKey]: nextCaptured };
-      advanceTurn(playerKey, newHandAfter.length, { [playerKey]: newHandAfter }, capturedSnapshot);
+          newFloor = floorAfterDeck;
+          floorCardsTaken = [...handMatches, ...deckMatches];
+
+          deckCapturedThisTurn.forEach(c => {
+            if (c.type === 'gwang') nextCaptured.gwang.push(c);
+            else if (c.type === 'yeol') nextCaptured.yeol.push(c);
+            else if (c.type === 'tti') nextCaptured.tti.push(c);
+            else nextCaptured.pi.push(c);
+          });
+
+          const isDdadak = handCaptured.length > 0 && deckCapturedThisTurn.length > 0;
+          const isJjok = handCaptured.length === 0 && deckCapturedThisTurn.length > 0;
+          const isBigSweep = handMatches.length >= 3 || deckMatches.length >= 3;
+          const isSsakssuli = floorCards.length > 0 && newFloor.length === 0;
+          const bonusTriggered = isDdadak || isJjok || isBigSweep || isSsakssuli;
+
+          if (bonusTriggered) {
+            const label = isDdadak ? '따닥' : isJjok ? '쪽' : isBigSweep ? '쓸어담기' : '싹쓸이';
+            eventNote = `✨ ${label}! 상대에게서 피 1장씩 받아옵니다.`;
+            turnOrder.filter(k => k !== playerKey).forEach(k => {
+              const theirCaptured = getCaptured(k);
+              if (theirCaptured.pi.length > 0) {
+                const stolen = theirCaptured.pi[theirCaptured.pi.length - 1];
+                setCapturedFor(k)({ ...theirCaptured, pi: theirCaptured.pi.filter(c => c.id !== stolen.id) });
+                nextCaptured.pi.push(stolen);
+              }
+            });
+          }
+        }
+
+        setCapturedFor(playerKey)(nextCaptured);
+        setFloorCards(newFloor);
+        setRemainingDeck(newDeck);
+        setLastDeckCard(flippedDeckCard);
+        setPendingDeckFlip(false);
+
+        // 어떤 패를 내고 어떤 패를 먹었는지(혹은 못 먹었는지)를 매 턴 구체적인 카드 이름으로
+        // 보여준다. 예전에는 뻑/따닥 같은 특수 상황에서만 잠깐 배너가 떴고 평범한 플레이는 아무
+        // 표시 없이 상태만 조용히 바뀌어서 "방금 무슨 일이 있었는지" 알아채기 어려웠다.
+        const primaryMessage = isPpeok
+          ? `낸 패 ${card.name} · 뻑! ${card.month}월 패 3장 보류(이번 턴엔 못 먹음)`
+          : floorCardsTaken.length > 0
+          ? `낸 패 ${card.name} · 먹은 패 ${floorCardsTaken.map(c => c.name).join(', ')}`
+          : `낸 패 ${card.name} · 바닥에 깔림`;
+        const banner = `${PLAYER_LABEL[playerKey]}: ${primaryMessage}${eventNote ? ` · ${eventNote}` : ''}`;
+        setEventBanner(banner);
+        setActionLog(banner);
+
+        const totalCapturedThisTurn = [...handCaptured, ...deckCapturedThisTurn];
+        const scoreInfo = calculateScore(nextCaptured);
+        const crossedStopLine = totalCapturedThisTurn.length > 0 && scoreInfo.total >= getStopThreshold(gameMode);
+
+        if (crossedStopLine) {
+          setPendingGoStop(playerKey);
+          setPendingScore(scoreInfo);
+          return;
+        }
+
+        const capturedSnapshot: Partial<Record<PlayerKey, CapturedSummary>> = { [playerKey]: nextCaptured };
+        advanceTurn(playerKey, newHandAfter.length, { [playerKey]: newHandAfter }, capturedSnapshot);
+      }, DECK_FLIP_DELAY_MS);
     },
-    [gameResult, pendingGoStop, getHand, getCaptured, floorCards, remainingDeck, advanceTurn, gameMode, turnOrder]
+    [gameResult, pendingGoStop, pendingDeckFlip, getHand, getCaptured, floorCards, remainingDeck, advanceTurn, gameMode, turnOrder]
   );
 
   // 고/스톱 결정 처리 (사용자 버튼 클릭 또는 AI 자동 결정)
@@ -1235,7 +1286,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
 
   // AI(상대1/상대2) 턴 자동 진행: 훈수 엔진을 그대로 재사용해 상대 시점에서 최적수를 계산한다.
   useEffect(() => {
-    if (gameResult || pendingGoStop) return;
+    if (gameResult || pendingGoStop || pendingDeckFlip) return;
     if (currentTurn === 'user') return;
 
     const hand = currentTurn === 'opp1' ? opponentHand : opponentHand2;
@@ -1255,11 +1306,11 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     }, AUTO_DELAY_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTurn, gameResult, pendingGoStop, opponentHand, opponentHand2, floorCards]);
+  }, [currentTurn, gameResult, pendingGoStop, pendingDeckFlip, opponentHand, opponentHand2, floorCards]);
 
   // 자동 모드에서는 내 차례에도 사용자가 버튼을 누르지 않아도 AI 추천대로 알아서 진행한다.
   useEffect(() => {
-    if (!autoMode || gameResult || pendingGoStop) return;
+    if (!autoMode || gameResult || pendingGoStop || pendingDeckFlip) return;
     if (currentTurn !== 'user') return;
     if (userHand.length === 0) return;
 
@@ -1268,7 +1319,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     }, AUTO_DELAY_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoMode, currentTurn, gameResult, pendingGoStop, userHand, floorCards]);
+  }, [autoMode, currentTurn, gameResult, pendingGoStop, pendingDeckFlip, userHand, floorCards]);
 
   // Preset situations for deliberate practice (교육용 스냅샷 — 턴제 상태도 함께 초기화)
   const loadScenario = (type: 'godori' | 'hongdan' | 'puck') => {
@@ -1356,7 +1407,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     userCaptured.gwang.length + userCaptured.yeol.length + userCaptured.tti.length + userCaptured.pi.length;
 
   const importanceStyle = IMPORTANCE_STYLE[bestRecommendation.importance];
-  const isUserTurn = currentTurn === 'user' && !pendingGoStop && !gameResult;
+  const isUserTurn = currentTurn === 'user' && !pendingGoStop && !gameResult && !pendingDeckFlip;
   const cardsDisabled = autoMode || !isUserTurn;
 
   // 흔들기 가능 여부: 지금 내 차례이고, 아직 선언 안 한 "같은 월 3장"을 들고 있으면 알려준다.
