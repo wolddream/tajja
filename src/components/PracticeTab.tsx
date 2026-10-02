@@ -189,6 +189,20 @@ const fitPileOverlap = (count: number, maxWidth?: number): number => {
 const pileNaturalWidth = (count: number): number =>
   count === 0 ? 0 : PILE_CARD_W + (count - 1) * (PILE_CARD_W - PILE_MIN_OVERLAP);
 
+// 내 손패를 폭이 좁아도 한 행에 전부 겹쳐 담기 위한 겹침(px) 계산. 바닥패 더미와 같은 방식이지만
+// 카드가 더 크고(컴팩트 40px / xs 32px) 직접 눌러서 내는 대상이라, 아무리 압축해도 카드 1장당
+// 최소 HAND_MIN_VISIBLE(px)만큼은 노출시켜 서로 구분하고 누를 수 있게 한다.
+const HAND_MIN_OVERLAP = 14;
+const HAND_MIN_VISIBLE = 10;
+const fitHandOverlap = (count: number, cardWidth: number, maxWidth: number | null): number => {
+  if (count <= 1 || maxWidth == null) return 0;
+  const naturalWidth = cardWidth + (count - 1) * (cardWidth - HAND_MIN_OVERLAP);
+  if (naturalWidth <= maxWidth) return HAND_MIN_OVERLAP;
+  const needed = (count * cardWidth - maxWidth) / (count - 1);
+  const maxOverlap = cardWidth - HAND_MIN_VISIBLE;
+  return Math.min(maxOverlap, Math.max(HAND_MIN_OVERLAP, needed));
+};
+
 // 한 종류(광/열끗/띠/피)의 먹은 패를 살짝 겹쳐 쌓고, 2장 이상이면 우하단에 장수 배지를 붙인다.
 // "나"/"상대" 아바타 배지를 없애고 텍스트로 바꿔 확보한 공간만큼, 먹은 패는 개수 제한 없이
 // 전부 보여준다. maxWidth가 주어지면 장수가 아무리 늘어도 그 폭을 넘지 않도록 겹침을 자동으로
@@ -236,30 +250,24 @@ const CapturedStack: React.FC<{ captured: CapturedSummary; align?: 'left' | 'rig
     return () => ro.disconnect();
   }, []);
 
-  // 아직 하나도 못 먹은 칸은 높이를 비워 공간을 내주고, 그 칸에 처음 패가 들어오는 순간에만
-  // min-h-[3rem]으로 늘어난다 — 게임 초반 빈 획득패 칸이 쓸데없이 2행치 공간을 차지해
-  // 바닥패·내 손패 등 아래 영역을 압박하던 문제를 줄인다(그 대신 첫 획득 때 약간의 높이 변화는 감수).
-  // max-h로 "줄 2개 + 여백" 이상은 절대 못 늘어나게 못박아 둔다 — 전체화면 등 테이블이 아주 길어지는
-  // 상황에서 상위 flex 레이아웃이 이 칸에 불필요하게 큰 세로 공간을 내주더라도 빈 여백만 늘어나는 일이
-  // 없게 한다(상대 패 칸이 쓸데없이 커 보인다는 사용자 지적에 따른 방어적 상한선).
+  // 획득 패가 1장도 없을 때부터 끝까지, 이 칸은 항상 "줄 2개 + 여백" 고정 높이를 차지한다.
+  // 예전에는 처음 먹기 전까지 높이를 0으로 비워두다 첫 획득 때 늘어나는 방식이었는데, 그 높이
+  // 변화 자체가 "게임 중 영역이 들쭉날쭉 바뀐다"는 피드백의 원인 중 하나였다 — 상대/내 영역을
+  // 고정해 달라는 요청에 따라 처음부터 끝까지 똑같은 높이로 못박는다(초반엔 빈 여백을 감수).
   const ROW_GAP = 6; // gap-1.5
   const CONTAINER_PADDING = 8; // p-1 (좌우 각 4px)
   return (
-    <div ref={containerRef} className={`flex flex-col gap-1 p-1 bg-black/20 rounded-lg w-full min-w-0 max-h-[7.5rem] overflow-hidden ${align === 'right' ? 'items-end' : 'items-start'}`}>
+    <div ref={containerRef} className={`flex flex-col gap-1 p-1 bg-black/20 rounded-lg w-full min-w-0 h-[6.75rem] overflow-hidden ${align === 'right' ? 'items-end' : 'items-start'}`}>
       {rows.map(([first, second], rowIdx) => {
         const secondMaxWidth = rowWidth != null
           ? Math.max(PILE_CARD_W, rowWidth - CONTAINER_PADDING - pileNaturalWidth(first.length) - ROW_GAP)
           : undefined;
-        const rowHasCards = first.length > 0 || second.length > 0;
         // 두 더미가 모두 있으면 양 끝에 벌려 칸을 꽉 채우고, 하나만 있을 때는 한쪽 끝에 붙여두지
         // 않고 가운데로 둬서(justify-center) 반대쪽에 남는 공간이 쓸모없이 비어 보이지 않게 한다.
         const bothHaveCards = first.length > 0 && second.length > 0;
         const rowJustify = bothHaveCards ? 'justify-between' : 'justify-center';
         return (
-          <div
-            key={rowIdx}
-            className={`flex items-end gap-1.5 w-full transition-[min-height] duration-200 ${rowHasCards ? 'min-h-[3rem]' : 'min-h-0'} ${rowJustify}`}
-          >
+          <div key={rowIdx} className={`flex items-end gap-1.5 w-full min-h-[3rem] ${rowJustify}`}>
             <CategoryPile cards={first} />
             <CategoryPile cards={second} maxWidth={secondMaxWidth} />
           </div>
@@ -658,6 +666,19 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   // 게임판(felt table) 자체 — 실제 내용 높이(scrollHeight)가 화면에 고정된 표시 높이(clientHeight)를
   // 넘는지 측정해, 넘칠 때만 손패/핵심 승부처 글자를 자동으로 줄이기 위해 참조한다.
   const tableRef = useRef<HTMLDivElement>(null);
+  // 내 손패 한 행(카드를 겹쳐서라도 줄바꿈 없이 모두 담는 행)의 실제 폭 — 이 폭에 맞춰
+  // 카드 겹침 정도(overlap)를 계산한다. "손패를 한 행에 겹쳐 놓아달라"는 피드백 반영.
+  const userHandRowRef = useRef<HTMLDivElement>(null);
+  const [userHandRowWidth, setUserHandRowWidth] = useState<number | null>(null);
+  useEffect(() => {
+    const el = userHandRowRef.current;
+    if (!el) return;
+    const update = () => setUserHandRowWidth(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   // 먹은 패가 늘어나거나 손패가 두 줄로 넘어가는 등, 내용이 화면 높이를 넘길 것 같을 때 자동으로 켜지는
   // 축소 레이아웃. 한 번 켜지면 다음 새 대국 전까지 유지해(단방향) 줄었다 늘었다 깜빡이는 것을 막는다.
   const [isCompactLayout, setIsCompactLayout] = useState<boolean>(false);
@@ -1572,18 +1593,21 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         {/* Opponent Area — 코너 아바타 배지 구도 (상대1/상대2 색상·글자로 확실히 구분).
             상대1/상대2 칸을 flex-1 + min-w-0 + overflow-hidden으로 폭을 균등 분배해,
             한쪽 먹은 패가 많아져도 다른 쪽을 밀어내거나 화면 밖으로 잘리지 않게 한다.
-            안 낸 패(손패)는 배지 옆에 나란히 붙여 별도의 줄을 쓰지 않도록 해 세로 공간을 아낀다. */}
+            안 낸 패(손패)와 먹은 패를 같은 행에 나란히 두고, 손패 쪽만 옅은 배경(bg-black/10)을
+            깔아 먹은 패 칸(bg-black/20)과 색으로 영역을 구분한다 — "상대패를 먹은패와 같은 행에,
+            배경색으로 영역 분리" 피드백 반영. 먹은 패 칸은 항상 고정 높이(CapturedStack 자체에서
+            고정)라 손패 장수가 줄어도 이 행의 높이가 들쭉날쭉 바뀌지 않는다. */}
         <div className="relative z-10 shrink-0 px-3.5 pt-2 space-y-1">
           <div className="flex items-start gap-2">
             <div className="flex-1 min-w-0 overflow-hidden flex flex-col items-start gap-1">
-              <div className="flex items-center gap-1.5 w-full">
-                <PlayerLabel
-                  label="상대1"
-                  sub={showOpponentCards ? '패 공개' : '비공개'}
-                  labelColorClass="text-[#E08585]"
-                  active={currentTurn === 'opp1' && !gameResult}
-                />
-                <div className="flex-1 min-w-0 overflow-hidden">
+              <PlayerLabel
+                label="상대1"
+                sub={showOpponentCards ? '패 공개' : '비공개'}
+                labelColorClass="text-[#E08585]"
+                active={currentTurn === 'opp1' && !gameResult}
+              />
+              <div className="flex items-stretch gap-1.5 w-full">
+                <div className="shrink-0 flex items-center px-1.5 bg-black/10 rounded-lg">
                   <HandStack
                     cards={opponentHand}
                     isHidden={!showOpponentCards}
@@ -1592,14 +1616,26 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                     align="left"
                   />
                 </div>
+                <div className="flex-1 min-w-0">
+                  <CapturedStack captured={opponentCaptured} align="left" />
+                </div>
               </div>
-              <CapturedStack captured={opponentCaptured} align="left" />
             </div>
 
             {gameMode === 'gostop3' && (
               <div className="flex-1 min-w-0 overflow-hidden flex flex-col items-end gap-1">
-                <div className="flex items-center gap-1.5 w-full justify-end">
-                  <div className="flex-1 min-w-0 overflow-hidden">
+                <PlayerLabel
+                  label="상대2"
+                  sub={showOpponentCards ? '패 공개' : '비공개'}
+                  labelColorClass="text-[#7FB4E0]"
+                  align="right"
+                  active={currentTurn === 'opp2' && !gameResult}
+                />
+                <div className="flex items-stretch gap-1.5 w-full justify-end">
+                  <div className="flex-1 min-w-0">
+                    <CapturedStack captured={opponent2Captured} align="right" />
+                  </div>
+                  <div className="shrink-0 flex items-center px-1.5 bg-black/10 rounded-lg">
                     <HandStack
                       cards={opponentHand2}
                       isHidden={!showOpponentCards}
@@ -1608,15 +1644,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                       align="right"
                     />
                   </div>
-                  <PlayerLabel
-                    label="상대2"
-                    sub={showOpponentCards ? '패 공개' : '비공개'}
-                    labelColorClass="text-[#7FB4E0]"
-                    align="right"
-                    active={currentTurn === 'opp2' && !gameResult}
-                  />
                 </div>
-                <CapturedStack captured={opponent2Captured} align="right" />
               </div>
             )}
           </div>
@@ -1748,28 +1776,41 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               <span>획득 광{userCaptured.gwang.length}·열{userCaptured.yeol.length}·띠{userCaptured.tti.length}·피{userCaptured.pi.length}</span>
             )}
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-1">
-            {userHand.map(card => {
-              const isRecommended = card.id === bestRecommendation.card.id;
-              const isSecond = secondRecommendation && card.id === secondRecommendation.card.id;
-              const isSelected = selectedCardId === card.id;
+          {/* 손패가 몇 장이든 줄바꿈 없이 한 행에 담기도록, 폭이 모자라면 카드를 서로 겹쳐
+              쌓는다("손패를 한 행에 겹쳐 놓아달라"는 피드백 반영). 겹침 정도는 실제 측정한 행
+              폭에 맞춰 fitHandOverlap이 계산하고, 선택된 카드만 다른 카드 위로 올라오도록
+              z-index를 높여 겹쳐도 항상 또렷이 보이게 한다. */}
+          <div ref={userHandRowRef} className="flex items-center justify-center w-full">
+            {(() => {
+              const cardWidthPx = isCompactLayout ? 32 : 40;
+              const overlap = fitHandOverlap(userHand.length, cardWidthPx, userHandRowWidth);
+              return userHand.map((card, i) => {
+                const isRecommended = card.id === bestRecommendation.card.id;
+                const isSecond = secondRecommendation && card.id === secondRecommendation.card.id;
+                const isSelected = selectedCardId === card.id;
 
-              return (
-                <CardView
-                  key={card.id}
-                  card={card}
-                  size={isCompactLayout ? 'xs' : 'compact'}
-                  isRecommended={isRecommended}
-                  recommendationRank={isRecommended ? 1 : (isSecond ? 2 : undefined)}
-                  isSelected={isSelected}
-                  disabled={cardsDisabled}
-                  onClick={() => {
-                    setSelectedCardId(card.id);
-                    applyPlay('user', card);
-                  }}
-                />
-              );
-            })}
+                return (
+                  <div
+                    key={card.id}
+                    className="shrink-0"
+                    style={{ marginLeft: i === 0 ? 0 : `-${overlap}px`, zIndex: isSelected ? 100 : i }}
+                  >
+                    <CardView
+                      card={card}
+                      size={isCompactLayout ? 'xs' : 'compact'}
+                      isRecommended={isRecommended}
+                      recommendationRank={isRecommended ? 1 : (isSecond ? 2 : undefined)}
+                      isSelected={isSelected}
+                      disabled={cardsDisabled}
+                      onClick={() => {
+                        setSelectedCardId(card.id);
+                        applyPlay('user', card);
+                      }}
+                    />
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
 
