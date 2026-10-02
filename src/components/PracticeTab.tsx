@@ -790,8 +790,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [opponentCaptured, setOpponentCaptured] = useState<CapturedSummary>(EMPTY_CAPTURED);
   const [opponent2Captured, setOpponent2Captured] = useState<CapturedSummary>(EMPTY_CAPTURED);
 
-  // Play animation / action feedback log
-  const [actionLog, setActionLog] = useState<string>('원하는 패를 누르면 실제 한 수를 두고 전황을 확인할 수 있습니다.');
   const [lastDeckCard, setLastDeckCard] = useState<HwatuCard | null>(null);
 
   // Selected card for playing
@@ -920,7 +918,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
 
     setLastDeckCard(null);
     setSelectedCardId(null);
-    setActionLog('새로운 대국이 시작되었습니다. 내 차례부터 순서대로 진행됩니다.');
     setIsCompactLayout(false);
     resetTurnState();
   }, [gameMode]);
@@ -1038,11 +1035,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         });
       }
 
-      setActionLog(
-        winner === 'draw'
-          ? `아무도 ${stopThreshold}점을 달성하지 못한 채 패가 모두 소진되어 무승부(유찰)로 종료되었습니다.`
-          : `${PLAYER_LABEL[winner]}이(가) ${finalScore}점으로 게임을 승리했습니다!`
-      );
       setGameResult({ winner, scores, multiplier, finalScore, badges });
       setResultModalOpen(true);
       setPendingGoStop(null);
@@ -1169,7 +1161,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         : `낸 패 ${card.name} · 바닥에 깔림`;
       const interimBanner = `${PLAYER_LABEL[playerKey]}: ${handOnlyMessage}`;
       setEventBanner(interimBanner);
-      setActionLog(interimBanner);
 
       // ── 2단계: 한 박자 뒤, 덱패를 뒤집어 턴을 마무리한다 ──────────────────────────────
       pendingDeckFlipTimeoutRef.current = window.setTimeout(() => {
@@ -1255,7 +1246,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           : `낸 패 ${card.name} · 바닥에 깔림`;
         const banner = `${PLAYER_LABEL[playerKey]}: ${primaryMessage}${eventNote ? ` · ${eventNote}` : ''}`;
         setEventBanner(banner);
-        setActionLog(banner);
 
         const totalCapturedThisTurn = [...handCaptured, ...deckCapturedThisTurn];
         const scoreInfo = calculateScore(nextCaptured);
@@ -1350,7 +1340,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     let floorNext: HwatuCard[];
     let userCapturedNext: CapturedSummary;
     let opponentCapturedNext: CapturedSummary;
-    let logNext: string;
 
     if (type === 'godori') {
       const m8bird = HWATU_DECK.find(c => c.id === 'm8_godori')!;
@@ -1369,7 +1358,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         pi: [HWATU_DECK.find(c => c.id === 'm6_pi1')!, HWATU_DECK.find(c => c.id === 'm9_pi1')!]
       };
       userCapturedNext = EMPTY_CAPTURED;
-      logNext = '시나리오 로드: [상대 고도리 위기] 상대가 새 2장을 확보했습니다. 8월 기러기 차단이 시급합니다.';
     } else if (type === 'hongdan') {
       const m1hong = HWATU_DECK.find(c => c.id === 'm1_hongdan')!;
       const m11gwang = HWATU_DECK.find(c => c.id === 'm11_gwang')!;
@@ -1383,7 +1371,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         pi: []
       };
       opponentCapturedNext = { gwang: [], yeol: [], tti: [], pi: [HWATU_DECK.find(c => c.id === 'm7_pi1')!] };
-      logNext = '시나리오 로드: [홍단 완성 찬스] 내 홍단 2장 확보 상태에서 1월 홍단을 먹어 3점을 완성할 기회입니다.';
     } else {
       const m6clean = HWATU_DECK.find(c => c.id === 'm6_cheongdan')!;
       userHandNext = [m6clean, HWATU_DECK.find(c => c.id === 'm1_gwang')!, HWATU_DECK.find(c => c.id === 'm8_pi1')!];
@@ -1395,7 +1382,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       ];
       userCapturedNext = EMPTY_CAPTURED;
       opponentCapturedNext = EMPTY_CAPTURED;
-      logNext = '시나리오 로드: [바닥 3장 쓸어담기 찬스] 6월 3장이 바닥에 겹쳐있습니다. 쓸어담으면 피 뺏기 보너스까지 발동합니다.';
     }
 
     // 시나리오에서 이미 쓰인 카드를 제외한 나머지로 상대 손패·남은 덱을 채워, 카드가 중복되거나
@@ -1420,7 +1406,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     setRemainingDeck(deckNext);
     setLastDeckCard(null);
     setSelectedCardId(null);
-    setActionLog(logNext);
   };
 
   const userCapturedTotal =
@@ -1580,15 +1565,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           </div>
         </div>
 
-        {/* 최근 동작 한 줄 요약 — "낸 패 · 먹은 패"가 몇 초 뒤 사라지는 알림 배너만으로는 놓치기
-            쉬워서, 항상 보이는 얇은 줄에도 마지막 동작을 남겨 둔다("자연스럽지 않다"는 피드백 반영). */}
-        <div
-          className="relative z-10 shrink-0 px-3.5 py-1 text-[10px] text-[#D8CBA8] bg-black/15 truncate"
-          title={actionLog}
-        >
-          {actionLog}
-        </div>
-
         {/* Opponent Area — 코너 아바타 배지 구도 (상대1/상대2 색상·글자로 확실히 구분).
             상대1/상대2 칸을 flex-1 + min-w-0 + overflow-hidden으로 폭을 균등 분배해,
             한쪽 먹은 패가 많아져도 다른 쪽을 밀어내거나 화면 밖으로 잘리지 않게 한다.
@@ -1601,7 +1577,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             <div className="flex-1 min-w-0 overflow-hidden flex flex-col items-start gap-1">
               <PlayerLabel
                 label="상대1"
-                sub={showOpponentCards ? '패 공개' : '비공개'}
+                sub={`${showOpponentCards ? '패 공개' : '비공개'} · 점수 ${calculateScore(opponentCaptured).total}`}
                 labelColorClass="text-[#E08585]"
                 active={currentTurn === 'opp1' && !gameResult}
               />
@@ -1625,7 +1601,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               <div className="flex-1 min-w-0 overflow-hidden flex flex-col items-end gap-1">
                 <PlayerLabel
                   label="상대2"
-                  sub={showOpponentCards ? '패 공개' : '비공개'}
+                  sub={`${showOpponentCards ? '패 공개' : '비공개'} · 점수 ${calculateScore(opponent2Captured).total}`}
                   labelColorClass="text-[#7FB4E0]"
                   align="right"
                   active={currentTurn === 'opp2' && !gameResult}
