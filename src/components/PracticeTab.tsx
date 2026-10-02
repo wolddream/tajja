@@ -810,8 +810,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [shakenMonths, setShakenMonths] = useState<Record<PlayerKey, Set<number>>>({
     user: new Set(), opp1: new Set(), opp2: new Set(),
   });
-  // 뻑/따닥/쪽/싹쓸이 등 특수 상황이 발생했을 때 잠깐 띄우는 알림 배너.
-  const [eventBanner, setEventBanner] = useState<string | null>(null);
   // 낸 패가 바닥패를 먹는 순간, 두 패가 절반쯤 포개진 모습을 "그 바닥패가 원래 있던 자리"에
   // 잠깐 보여준다 — 자리가 바뀌는(별도 영역에 뜨는) 게 아니라 원래 위치에서 포개져야 자연스럽다는
   // 피드백 반영. offset은 바닥패 그리드(floorGridRef) 기준 상대 좌표로, 캡처 직전(아직 상태가
@@ -858,7 +856,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     setGoCounts({ user: 0, opp1: 0, opp2: 0 });
     setShakeCounts({ user: 0, opp1: 0, opp2: 0 });
     setShakenMonths({ user: new Set(), opp1: new Set(), opp2: new Set() });
-    setEventBanner(null);
     setPendingGoStop(null);
     setPendingScore(null);
     setPendingDeckFlip(false);
@@ -869,13 +866,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     setGameResult(null);
     setResultModalOpen(false);
   };
-
-  // 뻑/따닥/쪽/싹쓸이 알림 배너는 몇 초 뒤 자동으로 사라진다.
-  useEffect(() => {
-    if (!eventBanner) return;
-    const t = window.setTimeout(() => setEventBanner(null), 2600);
-    return () => window.clearTimeout(t);
-  }, [eventBanner]);
 
   // Function to deal a fresh situation
   const generateNewSituation = useCallback((mode: GameMode = gameMode) => {
@@ -980,7 +970,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     });
     if (playerKey === 'user') {
       playClick();
-      setEventBanner(`나: 🌀 ${month}월 흔들기 선언! (이 판을 이기면 점수 2배)`);
     }
   };
 
@@ -1154,14 +1143,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       if (playerKey === 'user') setSelectedCardId(null);
       setPendingDeckFlip(true);
 
-      const handOnlyMessage = isPpeok
-        ? `낸 패 ${card.name} · 바닥 짝패와 나란히 (덱 확인 중…)`
-        : handMatches.length > 0
-        ? `낸 패 ${card.name} · 먹은 패 ${handMatches.map(c => c.name).join(', ')}`
-        : `낸 패 ${card.name} · 바닥에 깔림`;
-      const interimBanner = `${PLAYER_LABEL[playerKey]}: ${handOnlyMessage}`;
-      setEventBanner(interimBanner);
-
       // ── 2단계: 한 박자 뒤, 덱패를 뒤집어 턴을 마무리한다 ──────────────────────────────
       pendingDeckFlipTimeoutRef.current = window.setTimeout(() => {
         pendingDeckFlipTimeoutRef.current = null;
@@ -1169,8 +1150,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         let newDeck = remainingDeck;
         let flippedDeckCard: HwatuCard | null = null;
         let deckCapturedThisTurn: HwatuCard[] = [];
-        let floorCardsTaken: HwatuCard[] = [...handMatches];
-        let eventNote = '';
         const nextCaptured: CapturedSummary = {
           gwang: [...handOnlyCaptured.gwang],
           yeol: [...handOnlyCaptured.yeol],
@@ -1183,7 +1162,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           newFloor = [...handOnlyFloor, peekedDeckCard!];
           newDeck = remainingDeck.slice(1);
           flippedDeckCard = peekedDeckCard;
-          eventNote = `🀄 뻑! ${card.month}월 패 3장이 바닥에 묶여 이번 턴엔 먹지 못했습니다.`;
         } else {
           let deckMatches: HwatuCard[] = [];
           let floorAfterDeck = handOnlyFloor;
@@ -1201,7 +1179,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           }
 
           newFloor = floorAfterDeck;
-          floorCardsTaken = [...handMatches, ...deckMatches];
 
           deckCapturedThisTurn.forEach(c => {
             if (c.type === 'gwang') nextCaptured.gwang.push(c);
@@ -1217,8 +1194,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           const bonusTriggered = isDdadak || isJjok || isBigSweep || isSsakssuli;
 
           if (bonusTriggered) {
-            const label = isDdadak ? '따닥' : isJjok ? '쪽' : isBigSweep ? '쓸어담기' : '싹쓸이';
-            eventNote = `✨ ${label}! 상대에게서 피 1장씩 받아옵니다.`;
             turnOrder.filter(k => k !== playerKey).forEach(k => {
               const theirCaptured = getCaptured(k);
               if (theirCaptured.pi.length > 0) {
@@ -1235,17 +1210,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         setRemainingDeck(newDeck);
         setLastDeckCard(flippedDeckCard);
         setPendingDeckFlip(false);
-
-        // 어떤 패를 내고 어떤 패를 먹었는지(혹은 못 먹었는지)를 매 턴 구체적인 카드 이름으로
-        // 보여준다. 예전에는 뻑/따닥 같은 특수 상황에서만 잠깐 배너가 떴고 평범한 플레이는 아무
-        // 표시 없이 상태만 조용히 바뀌어서 "방금 무슨 일이 있었는지" 알아채기 어려웠다.
-        const primaryMessage = isPpeok
-          ? `낸 패 ${card.name} · 뻑! ${card.month}월 패 3장 보류(이번 턴엔 못 먹음)`
-          : floorCardsTaken.length > 0
-          ? `낸 패 ${card.name} · 먹은 패 ${floorCardsTaken.map(c => c.name).join(', ')}`
-          : `낸 패 ${card.name} · 바닥에 깔림`;
-        const banner = `${PLAYER_LABEL[playerKey]}: ${primaryMessage}${eventNote ? ` · ${eventNote}` : ''}`;
-        setEventBanner(banner);
 
         const totalCapturedThisTurn = [...handCaptured, ...deckCapturedThisTurn];
         const scoreInfo = calculateScore(nextCaptured);
@@ -1475,14 +1439,6 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             훈수패
           </span>
         </div>
-
-        {/* 매 턴 "낸 패 · 먹은 패"를 보여주는 알림 배너(뻑/따닥/쪽/싹쓸이 등은 뒤에 덧붙여짐) —
-            몇 초 뒤 자동으로 사라진다. 카드 이름이 길 수 있어 한 줄 고정 대신 줄바꿈을 허용한다. */}
-        {eventBanner && (
-          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 max-w-[88%] px-3.5 py-1.5 rounded-2xl bg-[#A9791C] text-white text-[11px] font-bold shadow-lg text-center leading-snug pointer-events-none">
-            {eventBanner}
-          </div>
-        )}
 
         {/* Top status strip: 사이트 상단 메뉴(경험치)를 게임 화면 안으로 옮겨와 왼쪽에 두고,
             이유 보기 / 설정 / 전체화면 버튼은 오른쪽에 둔다. (훈수패 요약·차례 텍스트는 좁은 화면에서
