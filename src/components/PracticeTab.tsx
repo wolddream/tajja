@@ -791,6 +791,14 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   });
   // 뻑/따닥/쪽/싹쓸이 등 특수 상황이 발생했을 때 잠깐 띄우는 알림 배너.
   const [eventBanner, setEventBanner] = useState<string | null>(null);
+  // 낸 패가 바닥패를 먹는 순간, 두 패가 절반쯤 포개진 모습을 잠깐 보여준다 — 실제로 패를 쳐서
+  // 짝 위에 겹쳐 놓는 그 장면이 하나도 안 보여서 "자연스럽지 않다"는 피드백 반영.
+  const [matchPreview, setMatchPreview] = useState<{ played: HwatuCard; matched: HwatuCard; extra: number } | null>(null);
+  useEffect(() => {
+    if (!matchPreview) return;
+    const t = window.setTimeout(() => setMatchPreview(null), 1100);
+    return () => window.clearTimeout(t);
+  }, [matchPreview]);
   const [pendingGoStop, setPendingGoStop] = useState<PlayerKey | null>(null);
   const [pendingScore, setPendingScore] = useState<ScoreBreakdown | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
@@ -1089,7 +1097,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
         let floorAfterPlay = handMatches.length > 0
           ? floorCards.filter(f => f.month !== card.month)
           : [...floorCards, card];
-        if (handCaptured.length > 0) playCapture();
+        if (handCaptured.length > 0) {
+          playCapture();
+          setMatchPreview({ played: card, matched: handMatches[0], extra: handMatches.length - 1 });
+        }
 
         let deckMatches: HwatuCard[] = [];
         let deckCaptured: HwatuCard[] = [];
@@ -1586,6 +1597,25 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                 <span className="text-[#F3D999] truncate max-w-[55%]">뒤집힘: <b className="underline">{lastDeckCard.name}</b></span>
               )}
             </div>
+
+            {/* 낸 패가 바닥패를 먹는 순간: 두 패를 절반쯤 겹쳐 놓아 "방금 이 패가 저 패를 쳐서
+                가져갔다"는 장면을 잠깐 보여준다. 실제 상태(floorCards 등)는 이미 바뀐 뒤라,
+                이 두 장은 현재 바닥패 목록과 무관한 별도의 스냅샷일 뿐이다. */}
+            {matchPreview && (
+              <div className="flex flex-col items-center gap-0.5 animate-in fade-in duration-150">
+                <div className="relative h-12 flex items-center" style={{ width: '48px' }}>
+                  <div className="absolute left-0 top-0">
+                    <CardView card={matchPreview.matched} size="xs" disabled={true} fullOpacity />
+                  </div>
+                  <div className="absolute left-4 top-0 ring-2 ring-[#F3D999] rounded-sm shadow-lg">
+                    <CardView card={matchPreview.played} size="xs" disabled={true} fullOpacity />
+                  </div>
+                </div>
+                <span className="text-[9px] font-bold text-[#F3D999] whitespace-nowrap">
+                  ✓ 포개서 먹음{matchPreview.extra > 0 ? ` (+${matchPreview.extra}장)` : ''}
+                </span>
+              </div>
+            )}
 
             {/* 바닥패는 폭에 따라 줄마다 장수가 들쭉날쭉 바뀌는 flex-wrap 대신 그리드로 가지런히
                 정렬한다. 고정 2열 대신 auto-fill로 가로 폭이 허용하는 만큼 카드를 최대한 많이
