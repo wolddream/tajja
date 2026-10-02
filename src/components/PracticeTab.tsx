@@ -654,6 +654,60 @@ const ScenarioIntroModal: React.FC<{ scenario: LevelScenario; onClose: () => voi
   </div>
 );
 
+// 상단바 🔥 아이콘을 눌렀는데 기본 시나리오("홍단 완성 찬스") 말고는 아직 하나도 해금되지 않았을 때
+// (레벨 1) 뜨는 안내 — 다음 심화학습이 무엇이고, 그걸 해금하려면 레벨을 얼마나 올려야 하는지 짚어준다.
+const AdvancedStudyLockedModal: React.FC<{
+  nextScenario: LevelScenario;
+  totalGames: number;
+  onOpenProfile: () => void;
+  onClose: () => void;
+}> = ({ nextScenario, totalGames, onOpenProfile, onClose }) => {
+  const req = LEVEL_REQUIREMENTS.find(r => r.level === nextScenario.unlockLevel);
+  return (
+    <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-3 text-center"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="text-3xl">🔒</div>
+        <div className="text-xs font-bold text-[#A9791C]">다음 심화학습 (레벨 {nextScenario.unlockLevel} 해금)</div>
+        <div className="text-lg font-black text-[#1F1F1F]">{nextScenario.title}</div>
+        <p className="text-xs text-[#555] leading-relaxed text-left">{nextScenario.focus}</p>
+
+        {req && (
+          <div className="p-3 rounded-lg bg-white border border-[#E5DFCE] text-left space-y-1">
+            <div className="text-[11px] font-bold text-[#7A7466]">레벨 {req.level} 승급 조건</div>
+            <ul className="text-xs text-[#555] space-y-0.5 list-disc list-inside">
+              <li>연습 경기 {req.gamesRequired}회 이상 (현재 {totalGames}회)</li>
+              {req.quizCorrectRequired > 0 && <li>오늘의 퀴즈 정답 {req.quizCorrectRequired}회 이상</li>}
+              {req.reasonsViewedRequired > 0 && <li>'이유 보기' 확인 {req.reasonsViewedRequired}회 이상</li>}
+              {req.boardParticipationRequired > 0 && <li>게시판 참여 {req.boardParticipationRequired}회 이상</li>}
+              {req.attendanceStreakRequired > 0 && <li>연속 출석 {req.attendanceStreakRequired}일 이상</li>}
+            </ul>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-lg bg-white border border-[#DDD4C0] hover:border-[#A9791C] text-[#555] text-sm font-bold cursor-pointer"
+          >
+            닫기
+          </button>
+          <button
+            type="button"
+            onClick={onOpenProfile}
+            className="flex-1 py-2.5 rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white text-sm font-bold cursor-pointer"
+          >
+            📊 진행 현황 보기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const PracticeTab: React.FC<PracticeTabProps> = ({
   onIncrementGameCount,
   onIncrementReasonCount,
@@ -705,6 +759,9 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [isCoreReasonOpen, setIsCoreReasonOpen] = useState<boolean>(false);
   // 심화학습 시나리오를 막 불러왔을 때 "무엇을 보여주려는 상황인지" 설명하는 학습 목표 팝업.
   const [introScenario, setIntroScenario] = useState<LevelScenario | null>(null);
+  // 상단바 🔥 심화학습 아이콘을 눌렀는데 아직 기본 시나리오 외에 해금된 게 하나도 없을 때
+  // (레벨 1인 경우) 뜨는 "다음 해금 조건 안내" 팝업.
+  const [isAdvancedLockedOpen, setIsAdvancedLockedOpen] = useState<boolean>(false);
   // 게임판(felt table) 자체 — 실제 내용 높이(scrollHeight)가 화면에 고정된 표시 높이(clientHeight)를
   // 넘는지 측정해, 넘칠 때만 손패/핵심 승부처 글자를 자동으로 줄이기 위해 참조한다.
   const tableRef = useRef<HTMLDivElement>(null);
@@ -1000,6 +1057,19 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     playClick();
     setIsReasonModalOpen(true);
     onIncrementReasonCount();
+  };
+
+  // 상단바 🔥 심화학습 아이콘 — 기본으로 항상 열려 있는 시나리오(unlockLevel 1) 말고, 레벨업으로
+  // 추가 해금된 심화학습이 하나라도 있으면(조건이 맞으면) 바로 설정창(심화학습 목록)으로 이동시키고,
+  // 하나도 없으면(아직 레벨 1) 다음 해금까지 뭘 더 해야 하는지 알려주는 팝업을 띄운다.
+  const handleOpenAdvancedStudy = () => {
+    playClick();
+    const hasUnlockedExtra = LEVEL_SCENARIOS.some(s => s.unlockLevel > 1 && userLevel >= s.unlockLevel);
+    if (hasUnlockedExtra) {
+      setIsSettingsOpen(true);
+    } else {
+      setIsAdvancedLockedOpen(true);
+    }
   };
 
   // 흔들기 선언: 같은 월 패를 3장 들고 있을 때, 그 사실을 공개하고 선언 횟수를 기록해둔다.
@@ -1504,6 +1574,14 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             </button>
             <button
               type="button"
+              onClick={handleOpenAdvancedStudy}
+              aria-label="심화학습 — 해금된 항목이 있으면 설정창으로, 없으면 해금 조건 안내"
+              className="shrink-0 w-7 h-7 rounded-md bg-black/40 hover:bg-black/60 border border-white/20 text-white text-[12px] font-bold cursor-pointer flex items-center justify-center"
+            >
+              🔥
+            </button>
+            <button
+              type="button"
               onClick={() => { playClick(); setIsSettingsOpen(true); }}
               aria-label="설정 열기"
               className="shrink-0 w-7 h-7 rounded-md bg-black/40 hover:bg-black/60 border border-white/20 text-white text-[12px] font-bold cursor-pointer flex items-center justify-center"
@@ -1828,6 +1906,22 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
       {introScenario && (
         <ScenarioIntroModal scenario={introScenario} onClose={() => setIntroScenario(null)} />
       )}
+
+      {/* 🔥 아이콘을 눌렀는데 아직 해금된 추가 심화학습이 없을 때(레벨 1)의 해금 조건 안내 */}
+      {isAdvancedLockedOpen && (() => {
+        const nextScenario = [...LEVEL_SCENARIOS]
+          .filter(s => s.unlockLevel > userLevel)
+          .sort((a, b) => a.unlockLevel - b.unlockLevel)[0];
+        if (!nextScenario) return null;
+        return (
+          <AdvancedStudyLockedModal
+            nextScenario={nextScenario}
+            totalGames={totalGames}
+            onOpenProfile={() => { setIsAdvancedLockedOpen(false); onOpenProfile(); }}
+            onClose={() => setIsAdvancedLockedOpen(false)}
+          />
+        );
+      })()}
     </div>
   );
 };
