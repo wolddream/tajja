@@ -9,6 +9,27 @@ import { CardView } from './CardView';
 import { ReasonModal } from './ReasonModal';
 import { playCardSnap, playCapture, playClick } from '../utils/sound';
 
+// 심화학습을 플레이할 때 게임판(felt) 배경을 레벨마다 다르게 꾸미는 테마 — 레벨이 높을수록
+// 색이 다채로워지고(그라데이션), 가장 높은 두 단계(5·6)는 테두리에 은은한 광채까지 더해 눈에
+// 띄게 화려해진다("높은 레벨일수록 화려하게" 피드백 반영). 시나리오를 안 할 때(일반 대국)는
+// 이 테마를 쓰지 않고 평소 펠트 색 그대로 둔다.
+const SCENARIO_TABLE_THEME: Record<number, { bgClass: string; borderClass: string; glowClass?: string }> = {
+  1: { bgClass: 'bg-[#2D4536]', borderClass: 'border-[#3D2817]' },
+  2: { bgClass: 'bg-gradient-to-br from-[#1C3A4A] to-[#2D5B6E]', borderClass: 'border-[#2D5B6E]' },
+  3: { bgClass: 'bg-gradient-to-br from-[#3B2347] to-[#5C2E6B]', borderClass: 'border-[#7A4A93]' },
+  4: { bgClass: 'bg-gradient-to-br from-[#4A2A12] via-[#6B3A10] to-[#8F6516]', borderClass: 'border-[#A9791C]' },
+  5: {
+    bgClass: 'bg-gradient-to-br from-[#5C1010] via-[#8F2020] to-[#A9791C]',
+    borderClass: 'border-[#F3D999]',
+    glowClass: 'hp-table-glow',
+  },
+  6: {
+    bgClass: 'bg-gradient-to-br from-[#2B0A3D] via-[#7A1E3D] to-[#A9791C]',
+    borderClass: 'border-[#FFE9A8]',
+    glowClass: 'hp-table-glow hp-table-glow-strong',
+  },
+};
+
 interface PracticeTabProps {
   onIncrementGameCount: () => void;
   onIncrementReasonCount: () => void;
@@ -751,6 +772,9 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   // 상단바 🔥 심화학습 아이콘을 눌렀는데 아직 기본 시나리오 외에 해금된 게 하나도 없을 때
   // (레벨 1인 경우) 뜨는 "다음 해금 조건 안내" 팝업.
   const [isAdvancedLockedOpen, setIsAdvancedLockedOpen] = useState<boolean>(false);
+  // 지금 심화학습 시나리오를 플레이 중인지(+어느 시나리오인지) — 게임판 배경을 레벨에 맞춰
+  // 꾸미는 데 쓴다. 일반 대국을 새로 시작하면 null로 돌아가 평소 펠트 색으로 복귀한다.
+  const [activeScenario, setActiveScenario] = useState<LevelScenario | null>(null);
   // 게임판(felt table) 자체 — 실제 내용 높이(scrollHeight)가 화면에 고정된 표시 높이(clientHeight)를
   // 넘는지 측정해, 넘칠 때만 손패/핵심 승부처 글자를 자동으로 줄이기 위해 참조한다.
   const tableRef = useRef<HTMLDivElement>(null);
@@ -998,6 +1022,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     setLastDeckCard(null);
     setSelectedCardId(null);
     setIsCompactLayout(false);
+    setActiveScenario(null);
     resetTurnState();
   }, [gameMode]);
 
@@ -1428,6 +1453,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     setLastDeckCard(null);
     setSelectedCardId(null);
     setIntroScenario(scenario);
+    setActiveScenario(scenario);
   };
 
   // 레벨업 팝업에서 "지금 바로 플레이하기"를 누르면 부모(App)가 pendingScenarioId를 넘겨준다 —
@@ -1477,6 +1503,10 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     bestRecommendation.primaryReason,
   ]);
 
+  // 심화학습 중이면 그 시나리오의 해금 레벨에 맞춰 게임판 테마(배경·테두리·광채)를 입히고,
+  // 일반 대국이면 테마 없이 평소 펠트 색(fallback)을 그대로 쓴다.
+  const tableTheme = activeScenario ? SCENARIO_TABLE_THEME[activeScenario.unlockLevel] : null;
+
   return (
     <div
       className={isFullscreen ? 'fixed inset-0 z-[200] bg-[#0F1712] p-2 sm:p-3 overflow-y-auto space-y-3' : ''}
@@ -1485,7 +1515,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           모든 설정은 테이블 안의 ⚙️ 설정 아이콘을 눌러 여는 패널에서 관리한다. */}
       <div
         ref={tableRef}
-        className="bg-[#2D4536] border-4 border-[#3D2817] rounded-2xl shadow-xl text-white relative overflow-hidden flex flex-col"
+        className={`${tableTheme?.bgClass ?? 'bg-[#2D4536]'} ${tableTheme?.borderClass ?? 'border-[#3D2817]'} ${tableTheme?.glowClass ?? ''} border-4 rounded-2xl shadow-xl text-white relative overflow-hidden flex flex-col transition-colors duration-500`}
         style={{
           // 가로·세로 폭이 내용(먹은 패 수, 핵심 승부처 글자 길이 등)에 따라 커졌다 작아졌다 하지
           // 않도록, 창 모드에서도 전체화면과 마찬가지로 height를 고정값으로 둔다(maxHeight만으로는

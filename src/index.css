@@ -30,3 +30,21 @@
   );
   animation: hp-gold-ring-spin 2.1s linear infinite;
 }
+
+/* 심화학습 최상위 레벨(5·6)에서 게임판 테두리가 은은하게 숨쉬듯 빛나는 효과 —
+   "높은 레벨일수록 화려하게" 피드백 반영. box-shadow만 바뀌므로 안쪽 카드·텍스트의
+   밝기(opacity)는 전혀 흔들리지 않는다. */
+@keyframes hp-table-glow-pulse {
+  0%, 100% { box-shadow: 0 0 18px 2px rgba(243, 217, 153, 0.35); }
+  50% { box-shadow: 0 0 34px 6px rgba(243, 217, 153, 0.6); }
+}
+.hp-table-glow {
+  animation: hp-table-glow-pulse 2.6s ease-in-out infinite;
+}
+.hp-table-glow-strong {
+  animation-name: hp-table-glow-pulse-strong;
+}
+@keyframes hp-table-glow-pulse-strong {
+  0%, 100% { box-shadow: 0 0 22px 3px rgba(255, 233, 168, 0.45); }
+  50% { box-shadow: 0 0 44px 10px rgba(255, 233, 168, 0.75); }
+}
