@@ -1610,10 +1610,12 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                   <div className="absolute left-4 top-0 ring-2 ring-[#F3D999] rounded-sm shadow-lg">
                     <CardView card={matchPreview.played} size="xs" disabled={true} fullOpacity />
                   </div>
+                  {matchPreview.extra > 0 && (
+                    <span className="absolute -right-1 -bottom-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-black/80 border border-white/50 text-[8px] font-bold text-white flex items-center justify-center leading-none">
+                      +{matchPreview.extra}
+                    </span>
+                  )}
                 </div>
-                <span className="text-[9px] font-bold text-[#F3D999] whitespace-nowrap">
-                  ✓ 포개서 먹음{matchPreview.extra > 0 ? ` (+${matchPreview.extra}장)` : ''}
-                </span>
               </div>
             )}
 
