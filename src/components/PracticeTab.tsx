@@ -4,6 +4,7 @@ import { HWATU_DECK, shuffleDeck } from '../utils/hwatuData';
 import { evaluateHand } from '../utils/engine';
 import { calculateScore, getStopThreshold, getPiBakThreshold, ScoreBreakdown } from '../utils/scoring';
 import { LEVEL_REQUIREMENTS } from '../utils/storage';
+import { LEVEL_SCENARIOS, LevelScenario } from '../utils/levelScenarios';
 import { CardView } from './CardView';
 import { ReasonModal } from './ReasonModal';
 import { playCardSnap, playCapture, playClick } from '../utils/sound';
@@ -19,6 +20,10 @@ interface PracticeTabProps {
   onLogout: () => void;
   // 로그인 직후 첫 진입에서는 바로 전체화면으로 시작한다(최초 마운트 시 1회만 반영되는 초기값).
   startFullscreen?: boolean;
+  // 레벨업 직후 "지금 바로 플레이하기"를 눌렀을 때 전달되는 심화학습 시나리오 id. 전달되는 즉시
+  // 그 시나리오를 로드하고, onScenarioConsumed로 부모 쪽 값을 비워 재진입 시 중복 로드를 막는다.
+  pendingScenarioId?: string | null;
+  onScenarioConsumed?: () => void;
 }
 
 type PlayerKey = 'user' | 'opp1' | 'opp2';
@@ -420,7 +425,8 @@ const SettingsModal: React.FC<{
   showDeckTopCard: boolean;
   onToggleDeckTopCard: () => void;
   onNewGame: () => void;
-  onLoadScenario: (type: 'godori' | 'hongdan' | 'puck') => void;
+  userLevel: number;
+  onLoadScenario: (scenario: LevelScenario) => void;
   onClose: () => void;
   currentUser: AuthUser | null;
   onLogout: () => void;
@@ -432,6 +438,7 @@ const SettingsModal: React.FC<{
   showDeckTopCard,
   onToggleDeckTopCard,
   onNewGame,
+  userLevel,
   onLoadScenario,
   onClose,
   currentUser,
@@ -501,29 +508,29 @@ const SettingsModal: React.FC<{
       </div>
 
       <div className="space-y-1.5">
-        <div className="text-[11px] font-bold text-[#7A7466]">실전 특수 상황 연습</div>
+        <div className="text-[11px] font-bold text-[#7A7466]">심화학습 (패 순서를 미리 짜 둔 교육용 시나리오)</div>
         <div className="flex flex-col gap-1.5">
-          <button
-            type="button"
-            onClick={() => onLoadScenario('godori')}
-            className="px-2.5 py-1.5 rounded-md bg-white border border-[#DDD4C0] hover:border-[#A9791C] text-[#222] text-xs text-left cursor-pointer"
-          >
-            🐦 상대 고도리 위기 차단
-          </button>
-          <button
-            type="button"
-            onClick={() => onLoadScenario('hongdan')}
-            className="px-2.5 py-1.5 rounded-md bg-white border border-[#DDD4C0] hover:border-[#A9791C] text-[#222] text-xs text-left cursor-pointer"
-          >
-            🔴 내 홍단 3점 완성
-          </button>
-          <button
-            type="button"
-            onClick={() => onLoadScenario('puck')}
-            className="px-2.5 py-1.5 rounded-md bg-white border border-[#DDD4C0] hover:border-[#A9791C] text-[#222] text-xs text-left cursor-pointer"
-          >
-            💥 바닥 3장 한번에 쓸어담기 찬스
-          </button>
+          {LEVEL_SCENARIOS.map(scenario => {
+            const unlocked = userLevel >= scenario.unlockLevel;
+            return (
+              <button
+                key={scenario.id}
+                type="button"
+                disabled={!unlocked}
+                onClick={() => unlocked && onLoadScenario(scenario)}
+                className={`px-2.5 py-1.5 rounded-md border text-xs text-left ${
+                  unlocked
+                    ? 'bg-white border-[#DDD4C0] hover:border-[#A9791C] text-[#222] cursor-pointer'
+                    : 'bg-[#F1EDE1] border-[#E5DFCE] text-[#A39C8A] cursor-not-allowed'
+                }`}
+              >
+                <div className="font-bold">{unlocked ? '🎓' : '🔒'} {scenario.title}</div>
+                <div className="text-[10px] mt-0.5 opacity-80">
+                  {unlocked ? scenario.focus : `레벨 ${scenario.unlockLevel} 달성 시 해금`}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -615,6 +622,29 @@ const CoreReasonModal: React.FC<{ recommendation: Recommendation; onClose: () =>
   );
 };
 
+// 심화학습 시나리오를 불러온 직후 뜨는 "학습 목표" 안내 — 어떤 패를 왜 내야 하는지, 그 결과로 어떤
+// 규칙(뻑/따닥/쓸어담기 등)이 재현되는지 미리 짚어주고 나서 실제 판을 보게 한다.
+const ScenarioIntroModal: React.FC<{ scenario: LevelScenario; onClose: () => void }> = ({ scenario, onClose }) => (
+  <div className="fixed inset-0 z-[300] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-3 text-center"
+      onClick={e => e.stopPropagation()}
+    >
+      <div className="text-3xl">🎓</div>
+      <div className="text-xs font-bold text-[#A9791C]">심화학습 · {scenario.focus}</div>
+      <div className="text-lg font-black text-[#1F1F1F]">{scenario.title}</div>
+      <p className="text-xs text-[#555] leading-relaxed text-left">{scenario.brief}</p>
+      <button
+        type="button"
+        onClick={onClose}
+        className="w-full py-2.5 rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white text-sm font-bold cursor-pointer"
+      >
+        🎮 시작하기
+      </button>
+    </div>
+  </div>
+);
+
 export const PracticeTab: React.FC<PracticeTabProps> = ({
   onIncrementGameCount,
   onIncrementReasonCount,
@@ -624,6 +654,8 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   onOpenProfile,
   onLogout,
   startFullscreen = false,
+  pendingScenarioId = null,
+  onScenarioConsumed,
 }) => {
   // 경험치 게이지 퍼센트 (Navigation.tsx와 동일한 계산식)
   const currentReq = LEVEL_REQUIREMENTS.find(r => r.level === userLevel) || LEVEL_REQUIREMENTS[0];
@@ -662,6 +694,8 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   // "핵심 승부처" 문구가 좁은 칸에 줄임 표시될 때, 🔍 아이콘으로 전체 내용을 크게 볼 수 있는 팝업
   const [isCoreReasonOpen, setIsCoreReasonOpen] = useState<boolean>(false);
+  // 심화학습 시나리오를 막 불러왔을 때 "무엇을 보여주려는 상황인지" 설명하는 학습 목표 팝업.
+  const [introScenario, setIntroScenario] = useState<LevelScenario | null>(null);
   // 게임판(felt table) 자체 — 실제 내용 높이(scrollHeight)가 화면에 고정된 표시 높이(clientHeight)를
   // 넘는지 측정해, 넘칠 때만 손패/핵심 승부처 글자를 자동으로 줄이기 위해 참조한다.
   const tableRef = useRef<HTMLDivElement>(null);
@@ -1295,82 +1329,48 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoMode, currentTurn, gameResult, pendingGoStop, pendingDeckFlip, userHand, floorCards]);
 
-  // Preset situations for deliberate practice (교육용 스냅샷 — 턴제 상태도 함께 초기화)
-  const loadScenario = (type: 'godori' | 'hongdan' | 'puck') => {
+  // 심화학습(레벨별로 패 순서를 미리 짜 둔 교육용 시나리오) 로드 — 턴제 상태도 함께 초기화.
+  // deckTopCardId가 있으면(뻑/따닥처럼 "다음에 뒤집는 덱패가 무엇이냐"가 핵심인 시나리오) 그 패를
+  // 덱 맨 위에 강제로 꽂아, 의도한 상황이 운에 맡겨지지 않고 반드시 재현되게 한다.
+  const loadLevelScenario = (scenario: LevelScenario) => {
     playClick();
     resetTurnState();
 
-    let userHandNext: HwatuCard[];
-    let floorNext: HwatuCard[];
-    let userCapturedNext: CapturedSummary;
-    let opponentCapturedNext: CapturedSummary;
-
-    if (type === 'godori') {
-      const m8bird = HWATU_DECK.find(c => c.id === 'm8_godori')!;
-      const m3gwang = HWATU_DECK.find(c => c.id === 'm3_gwang')!;
-      const m8floor = HWATU_DECK.find(c => c.id === 'm8_pi1')!;
-      const m3floor = HWATU_DECK.find(c => c.id === 'm3_pi1')!;
-      const m1pi = HWATU_DECK.find(c => c.id === 'm1_pi1')!;
-      const m7pi = HWATU_DECK.find(c => c.id === 'm7_pi1')!;
-
-      userHandNext = [m8bird, m3gwang, m1pi, m7pi];
-      floorNext = [m8floor, m3floor, HWATU_DECK.find(c => c.id === 'm5_pi1')!, HWATU_DECK.find(c => c.id === 'm10_pi1')!];
-      opponentCapturedNext = {
-        gwang: [],
-        yeol: [HWATU_DECK.find(c => c.id === 'm2_godori')!, HWATU_DECK.find(c => c.id === 'm4_godori')!],
-        tti: [],
-        pi: [HWATU_DECK.find(c => c.id === 'm6_pi1')!, HWATU_DECK.find(c => c.id === 'm9_pi1')!]
-      };
-      userCapturedNext = EMPTY_CAPTURED;
-    } else if (type === 'hongdan') {
-      const m1hong = HWATU_DECK.find(c => c.id === 'm1_hongdan')!;
-      const m11gwang = HWATU_DECK.find(c => c.id === 'm11_gwang')!;
-      const m1floor = HWATU_DECK.find(c => c.id === 'm1_pi1')!;
-      userHandNext = [m1hong, m11gwang, HWATU_DECK.find(c => c.id === 'm4_pi1')!];
-      floorNext = [m1floor, HWATU_DECK.find(c => c.id === 'm9_pi1')!, HWATU_DECK.find(c => c.id === 'm6_pi1')!];
-      userCapturedNext = {
-        gwang: [],
-        yeol: [],
-        tti: [HWATU_DECK.find(c => c.id === 'm2_hongdan')!, HWATU_DECK.find(c => c.id === 'm3_hongdan')!],
-        pi: []
-      };
-      opponentCapturedNext = { gwang: [], yeol: [], tti: [], pi: [HWATU_DECK.find(c => c.id === 'm7_pi1')!] };
-    } else {
-      const m6clean = HWATU_DECK.find(c => c.id === 'm6_cheongdan')!;
-      userHandNext = [m6clean, HWATU_DECK.find(c => c.id === 'm1_gwang')!, HWATU_DECK.find(c => c.id === 'm8_pi1')!];
-      floorNext = [
-        HWATU_DECK.find(c => c.id === 'm6_yeol')!,
-        HWATU_DECK.find(c => c.id === 'm6_pi1')!,
-        HWATU_DECK.find(c => c.id === 'm6_pi2')!,
-        HWATU_DECK.find(c => c.id === 'm1_pi1')!,
-      ];
-      userCapturedNext = EMPTY_CAPTURED;
-      opponentCapturedNext = EMPTY_CAPTURED;
-    }
-
-    // 시나리오에서 이미 쓰인 카드를 제외한 나머지로 상대 손패·남은 덱을 채워, 카드가 중복되거나
-    // 이전 대국의 상대 패가 그대로 남아 있는(턴 진행 시 오작동하는) 문제 없이 이어서 진행할 수 있게 한다.
+    const forcedCard = scenario.deckTopCardId ? HWATU_DECK.find(c => c.id === scenario.deckTopCardId)! : null;
     const usedIds = new Set([
-      ...userHandNext,
-      ...floorNext,
-      ...userCapturedNext.gwang, ...userCapturedNext.yeol, ...userCapturedNext.tti, ...userCapturedNext.pi,
-      ...opponentCapturedNext.gwang, ...opponentCapturedNext.yeol, ...opponentCapturedNext.tti, ...opponentCapturedNext.pi,
+      ...scenario.userHand,
+      ...scenario.floorCards,
+      ...scenario.userCaptured.gwang, ...scenario.userCaptured.yeol, ...scenario.userCaptured.tti, ...scenario.userCaptured.pi,
+      ...scenario.opponentCaptured.gwang, ...scenario.opponentCaptured.yeol, ...scenario.opponentCaptured.tti, ...scenario.opponentCaptured.pi,
+      ...(forcedCard ? [forcedCard] : []),
     ].map(c => c.id));
     const remainder = shuffleDeck(HWATU_DECK.filter(c => !usedIds.has(c.id)));
-    const opponentHandNext = remainder.slice(0, userHandNext.length);
-    const deckNext = remainder.slice(userHandNext.length);
+    const opponentHandNext = remainder.slice(0, scenario.userHand.length);
+    const deckRest = remainder.slice(scenario.userHand.length);
+    const deckNext = forcedCard ? [forcedCard, ...deckRest] : deckRest;
 
-    setUserHand(userHandNext);
-    setFloorCards(floorNext);
-    setUserCaptured(userCapturedNext);
-    setOpponentCaptured(opponentCapturedNext);
+    setUserHand(scenario.userHand);
+    setFloorCards(scenario.floorCards);
+    setUserCaptured(scenario.userCaptured);
+    setOpponentCaptured(scenario.opponentCaptured);
     setOpponentHand(opponentHandNext);
     setOpponentHand2([]);
     setOpponent2Captured(EMPTY_CAPTURED);
     setRemainingDeck(deckNext);
     setLastDeckCard(null);
     setSelectedCardId(null);
+    setIntroScenario(scenario);
   };
+
+  // 레벨업 팝업에서 "지금 바로 플레이하기"를 누르면 부모(App)가 pendingScenarioId를 넘겨준다 —
+  // 받는 즉시 해당 심화학습을 로드하고, 다시 중복 로드되지 않도록 부모 쪽 값을 비운다.
+  useEffect(() => {
+    if (!pendingScenarioId) return;
+    const scenario = LEVEL_SCENARIOS.find(s => s.id === pendingScenarioId);
+    if (scenario) loadLevelScenario(scenario);
+    onScenarioConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingScenarioId]);
 
   const userCapturedTotal =
     userCaptured.gwang.length + userCaptured.yeol.length + userCaptured.tti.length + userCaptured.pi.length;
@@ -1799,7 +1799,8 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           showDeckTopCard={showDeckTopCard}
           onToggleDeckTopCard={() => { playClick(); setShowDeckTopCard(prev => !prev); }}
           onNewGame={() => { playClick(); generateNewSituation(gameMode); setIsSettingsOpen(false); }}
-          onLoadScenario={type => { loadScenario(type); setIsSettingsOpen(false); }}
+          userLevel={userLevel}
+          onLoadScenario={scenario => { loadLevelScenario(scenario); setIsSettingsOpen(false); }}
           onClose={() => setIsSettingsOpen(false)}
           currentUser={currentUser}
           onLogout={onLogout}
@@ -1812,6 +1813,11 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
           recommendation={bestRecommendation}
           onClose={() => setIsCoreReasonOpen(false)}
         />
+      )}
+
+      {/* 심화학습 시나리오를 막 불러왔을 때의 학습 목표 안내 */}
+      {introScenario && (
+        <ScenarioIntroModal scenario={introScenario} onClose={() => setIntroScenario(null)} />
       )}
     </div>
   );

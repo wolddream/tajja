@@ -14,6 +14,7 @@ import {
   INITIAL_USER_PROFILE,
 } from './utils/storage';
 import { getNextLevelQuestConditions } from './utils/quests';
+import { LEVEL_SCENARIOS, LevelScenario } from './utils/levelScenarios';
 import { playSuccess } from './utils/sound';
 import { HWATU_DECK } from './utils/hwatuData';
 import { getCardImageSrc } from './utils/cardImages';
@@ -119,6 +120,12 @@ export default function App() {
     const timer = window.setTimeout(() => setQuestCelebration(null), 4500);
     return () => window.clearTimeout(timer);
   }, [questCelebration]);
+
+  // 레벨업 직후, 그 레벨에서 해금된 심화학습이 있으면 바로 해볼지 묻는 팝업. "지금 바로
+  // 플레이하기"를 누르면 pendingScenarioId에 그 시나리오 id를 담아 연습 탭으로 넘겨주고,
+  // PracticeTab이 마운트/갱신되는 즉시 그 시나리오를 로드한다.
+  const [unlockedScenario, setUnlockedScenario] = useState<LevelScenario | null>(null);
+  const [pendingScenarioId, setPendingScenarioId] = useState<string | null>(null);
 
   // Login / Logout handlers
   const handleLogin = (user: AuthUser) => {
@@ -246,6 +253,12 @@ export default function App() {
       title: req.title,
       badges: prev.badges.includes(req.badgeName) ? prev.badges : [...prev.badges, req.badgeName],
     }));
+
+    // 이 레벨에 도달하면 해금되는 심화학습(패 순서를 미리 짜 둔 교육용 시나리오)이 있으면, 바로
+    // 그 자리에서 플레이해볼 기회를 제안한다 — "레벨업 될 때마다 심화학습게임을 할 수 있는 기회를
+    // 달라"는 요청 반영.
+    const scenario = LEVEL_SCENARIOS.find(s => s.unlockLevel === nextLevel);
+    if (scenario) setUnlockedScenario(scenario);
   };
 
   // Reset Data
@@ -296,6 +309,45 @@ export default function App() {
         </div>
       )}
 
+      {/* 레벨업으로 새 심화학습이 해금됐을 때 뜨는 팝업 — "지금 바로 플레이하기"를 누르면 연습
+          탭으로 이동하면서 그 시나리오를 바로 불러온다. */}
+      {unlockedScenario && (
+        <div
+          className="fixed inset-0 z-[500] bg-black/55 flex items-center justify-center p-4"
+          onClick={() => setUnlockedScenario(null)}
+        >
+          <div
+            className="bg-[#FAF6EC] border-2 border-[#A9791C] rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-3"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="text-4xl animate-bounce">🎓</div>
+            <div className="text-lg font-black text-[#1F1F1F]">레벨업 기념 심화학습 해금!</div>
+            <div className="text-sm font-bold text-[#A9791C]">{unlockedScenario.title}</div>
+            <p className="text-xs text-[#7A7466] leading-relaxed text-left">{unlockedScenario.brief}</p>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setUnlockedScenario(null)}
+                className="flex-1 py-2.5 rounded-lg bg-white border border-[#DDD4C0] hover:border-[#A9791C] text-[#555] text-sm font-bold cursor-pointer"
+              >
+                나중에
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingScenarioId(unlockedScenario.id);
+                  setCurrentTab('practice');
+                  setUnlockedScenario(null);
+                }}
+                className="flex-1 py-2.5 rounded-lg bg-[#A9791C] hover:bg-[#8F6516] text-white text-sm font-bold cursor-pointer"
+              >
+                🎮 지금 플레이하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Navigation — 연습(게임) 화면에서는 메뉴를 게임 화면 안으로 옮기고 상단 바는 숨긴다 */}
       <Navigation
         currentTab={currentTab}
@@ -324,6 +376,8 @@ export default function App() {
             onOpenProfile={() => setCurrentTab('profile')}
             onLogout={handleLogout}
             startFullscreen={startFullscreen}
+            pendingScenarioId={pendingScenarioId}
+            onScenarioConsumed={() => setPendingScenarioId(null)}
           />
         )}
 
