@@ -189,18 +189,17 @@ const fitPileOverlap = (count: number, maxWidth?: number): number => {
 const pileNaturalWidth = (count: number): number =>
   count === 0 ? 0 : PILE_CARD_W + (count - 1) * (PILE_CARD_W - PILE_MIN_OVERLAP);
 
-// 내 손패를 폭이 좁아도 한 행에 전부 겹쳐 담기 위한 겹침(px) 계산. 바닥패 더미와 같은 방식이지만
-// 카드가 더 크고(컴팩트 40px / xs 32px) 직접 눌러서 내는 대상이라, 아무리 압축해도 카드 1장당
-// 최소 HAND_MIN_VISIBLE(px)만큼은 노출시켜 서로 구분하고 누를 수 있게 한다.
-const HAND_MIN_OVERLAP = 14;
+// 내 손패는 잘못 눌리는(오선택) 위험을 줄이기 위해, "한 행에 다 담긴다"는 조건 안에서 카드를
+// 최대한 좌우로 벌린다. 공간이 넉넉하면 전혀 겹치지 않고 행 폭 전체를 채우도록 카드 사이를
+// 띄우고(음수를 반환 = 간격), 그렇게 다 벌려서는 한 행에 안 들어갈 만큼 카드가 많을 때만 필요한
+// 최소한으로만 겹친다. 그래도 카드 1장당 최소 HAND_MIN_VISIBLE(px)은 항상 노출시켜 서로 구분하고
+// 정확히 누를 수 있게 한다.
 const HAND_MIN_VISIBLE = 10;
 const fitHandOverlap = (count: number, cardWidth: number, maxWidth: number | null): number => {
   if (count <= 1 || maxWidth == null) return 0;
-  const naturalWidth = cardWidth + (count - 1) * (cardWidth - HAND_MIN_OVERLAP);
-  if (naturalWidth <= maxWidth) return HAND_MIN_OVERLAP;
   const needed = (count * cardWidth - maxWidth) / (count - 1);
   const maxOverlap = cardWidth - HAND_MIN_VISIBLE;
-  return Math.min(maxOverlap, Math.max(HAND_MIN_OVERLAP, needed));
+  return Math.min(maxOverlap, needed);
 };
 
 // 한 종류(광/열끗/띠/피)의 먹은 패를 살짝 겹쳐 쌓고, 2장 이상이면 우하단에 장수 배지를 붙인다.
