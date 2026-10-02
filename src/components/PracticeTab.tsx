@@ -119,29 +119,18 @@ const PlayerLabel: React.FC<{
 const HandStack: React.FC<{
   cards: HwatuCard[];
   isHidden: boolean;
-  colorClass: string;
-  borderClass: string;
   align?: 'left' | 'right';
-}> = ({ cards, isHidden, colorClass, borderClass, align = 'left' }) => {
+}> = ({ cards, isHidden, align = 'left' }) => {
   if (cards.length === 0) {
     return <div className="text-[10.5px] text-white/60 py-0.5">패를 모두 소진했습니다.</div>;
   }
   const countLabel = <span className="text-[10px] font-bold text-white/70 tabular-nums shrink-0">{cards.length}장</span>;
 
-  // 안보기(비공개) 상태에서는 어차피 전부 같은 뒷면이라, 카드를 여러 장 겹쳐 봐야 정보가 늘지 않는다.
-  // 카드 뒷면 1장 + 장수 텍스트만 표시해 공간을 최소화한다.
+  // 안보기(비공개) 상태에서는 어차피 전부 같은 뒷면이라, 카드 뒷면 이미지를 그려봐야 정보가 늘지
+  // 않는다. 남은 장수는 상대 이름 옆(PlayerLabel)에 이미 "장수/점수"로 표시되므로, 여기서는 더
+  // 그릴 것이 없다 — 장식용 카드 뒷면 박스를 없애 그만큼 공간을 확보한다("공간 확보" 피드백 반영).
   if (isHidden) {
-    return (
-      <div className={`flex items-center gap-1.5 w-full ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
-        {align === 'right' && countLabel}
-        <div className={`w-8 h-12 shrink-0 rounded-sm ${colorClass} border ${borderClass} shadow-sm flex items-center justify-center`}>
-          <div className="w-3.5 h-3.5 rounded-full border border-white/40 flex items-center justify-center text-[7px] text-white/70 font-serif">
-            花
-          </div>
-        </div>
-        {align !== 'right' && countLabel}
-      </div>
-    );
+    return null;
   }
 
   // 보이기(공개) 상태에서는 실제 카드 각각이 서로 다른 정보를 담고 있으므로 계속 겹쳐서 보여준다.
@@ -1620,20 +1609,19 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
             <div className="flex-1 min-w-0 overflow-hidden flex flex-col items-start gap-1">
               <PlayerLabel
                 label="상대1"
-                sub={`${showOpponentCards ? '패 공개' : '비공개'} · 점수 ${calculateScore(opponentCaptured).total}`}
+                sub={`${showOpponentCards ? '패 공개' : '비공개'} · ${opponentHand.length}/${calculateScore(opponentCaptured).total}점`}
                 labelColorClass="text-[#E08585]"
                 active={currentTurn === 'opp1' && !gameResult}
               />
               <div className="flex items-stretch gap-1.5 w-full">
-                <div className="shrink-0 flex items-center px-1.5 bg-black/10 rounded-lg">
-                  <HandStack
-                    cards={opponentHand}
-                    isHidden={!showOpponentCards}
-                    colorClass="bg-[#9C3131]"
-                    borderClass="border-[#7D2626]"
-                    align="left"
-                  />
-                </div>
+                {/* 안보기(비공개) 모드에서는 남은 장수를 이미 위 라벨에 "장수/점수"로 표시하므로,
+                    장식용 카드 뒷면 칸 자체를 그리지 않고 그 폭을 먹은 패 칸에 몰아준다 —
+                    "공간 확보" 피드백 반영. 보이기 모드일 때만 실제 카드 이미지를 보여준다. */}
+                {showOpponentCards && (
+                  <div className="shrink-0 flex items-center px-1.5 bg-black/10 rounded-lg">
+                    <HandStack cards={opponentHand} isHidden={false} align="left" />
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <CapturedStack captured={opponentCaptured} align="left" />
                 </div>
@@ -1644,7 +1632,7 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
               <div className="flex-1 min-w-0 overflow-hidden flex flex-col items-end gap-1">
                 <PlayerLabel
                   label="상대2"
-                  sub={`${showOpponentCards ? '패 공개' : '비공개'} · 점수 ${calculateScore(opponent2Captured).total}`}
+                  sub={`${showOpponentCards ? '패 공개' : '비공개'} · ${opponentHand2.length}/${calculateScore(opponent2Captured).total}점`}
                   labelColorClass="text-[#7FB4E0]"
                   align="right"
                   active={currentTurn === 'opp2' && !gameResult}
@@ -1653,15 +1641,11 @@ export const PracticeTab: React.FC<PracticeTabProps> = ({
                   <div className="flex-1 min-w-0">
                     <CapturedStack captured={opponent2Captured} align="right" />
                   </div>
-                  <div className="shrink-0 flex items-center px-1.5 bg-black/10 rounded-lg">
-                    <HandStack
-                      cards={opponentHand2}
-                      isHidden={!showOpponentCards}
-                      colorClass="bg-[#2B5F8A]"
-                      borderClass="border-[#1E4A6B]"
-                      align="right"
-                    />
-                  </div>
+                  {showOpponentCards && (
+                    <div className="shrink-0 flex items-center px-1.5 bg-black/10 rounded-lg">
+                      <HandStack cards={opponentHand2} isHidden={false} align="right" />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
